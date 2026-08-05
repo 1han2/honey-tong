@@ -1,0 +1,216 @@
+import fs from "node:fs/promises";
+import type { ShortsRenderProps } from "../../remotion/types.js";
+import type { Candidate, ScriptPlan, TtsAsset } from "../lib/schemas.js";
+import { errorMessage } from "../lib/errors.js";
+import { extractSourceClip } from "../lib/media.js";
+import { logger } from "../lib/logger.js";
+import { TempWorkspace } from "../lib/temp-workspace.js";
+
+export type MediaRepository = {
+  updateCandidate(candidateId: string, patch: Partial<Candidate>): Promise<void>;
+};
+
+export type MediaProductionDependencies = {
+  repository: MediaRepository;
+  mediaStore: {
+    uploadRemoteSource(input: {
+      candidateId: string;
+      videoId: string;
+      sourceUrl: string;
+    }): Promise<string>;
+    uploadLocalFile(input: {
+      localPath: string;
+      objectName: string;
+      contentType: string;
+    }): Promise<string>;
+    signedReadUrl(gcsUri: string, hours?: number): Promise<string>;
+    deleteCandidateTemporaryObjects(candidateId: string): Promise<void>;
+  };
+  tts: { synthesizeToFile(text: string, outputPath: string): Promise<number> };
+  probeDuration?(sourceUrl: string): Promise<number>;
+  renderer: (input: {
+    publicDir: string;
+    outputPath: string;
+    props: ShortsRenderProps;
+    concurrency?: number;
+  }) => Promise<void>;
+  notifier: {
+    sendReview(input: { candidate: Candidate; signedUrl: string }): Promise<number>;
+    sendFailure(input: { candidate: Candidate; message: string }): Promise<number>;
+  };
+  maxTempBytes: number;
+};
+
+export const validateSourceClipDurations = (
+  scriptPlan: ScriptPlan,
+  sourceDurations: ReadonlyMap<string, number>,
+  toleranceMs = 250,
+): void => {
+  for (const segment of scriptPlan.segments) {
+    if (segment.type !== "source_clip") continue;
+    const durationMs = sourceDurations.get(segment.videoId);
+    if (durationMs === undefined) continue;
+    if (segment.sourceStartMs >= durationMs || segment.sourceEndMs > durationMs + toleranceMs) {
+      throw new Error(
+        `Source clip ${segment.videoId} (${segment.sourceStartMs}-${segment.sourceEndMs}ms) exceeds source duration ${durationMs}ms`,
+      );
+    }
+  }
+};
+
+export const renderCandidate = async (
+  input: { candidate: Candidate; scriptPlan: ScriptPlan },
+  dependencies: MediaProductionDependencies,
+): Promise<{ outputUri: string; outputSizeBytes: number; reviewMessageId: number }> => {
+  const { candidate, scriptPlan } = input;
+  const workspace = await TempWorkspace.create(dependencies.maxTempBytes);
+
+  try {
+    const confirmedSources = candidate.sourceAssets.filter(
+      (source) => source.rightsStatus === "CONFIRMED",
+    );
+    const requiredVideoIds = new Set(
+      scriptPlan.segments
+        .filter((segment): segment is Extract<ScriptPlan["segments"][number], { type: "source_clip" }> => segment.type === "source_clip")
+        .map((segment) => segment.videoId),
+    );
+    const sourceUris: string[] = [];
+    const signedSourceUrls = new Map<string, string>();
+    const sourceDurations = new Map<string, number>();
+
+    for (const videoId of requiredVideoIds) {
+      const source = confirmedSources.find((item) => item.videoId === videoId);
+      if (!source) throw new Error(`No confirmed source asset for video ${videoId}`);
+      const uri = await dependencies.mediaStore.uploadRemoteSource({
+        candidateId: candidate.candidateId,
+        videoId: source.videoId,
+        sourceUrl: source.sourceUrl,
+      });
+      sourceUris.push(uri);
+      const signedUrl = await dependencies.mediaStore.signedReadUrl(uri, 1);
+      signedSourceUrls.set(source.videoId, signedUrl);
+      if (dependencies.probeDuration) {
+        sourceDurations.set(source.videoId, await dependencies.probeDuration(signedUrl));
+      }
+    }
+    validateSourceClipDurations(scriptPlan, sourceDurations);
+    await dependencies.repository.updateCandidate(candidate.candidateId, {
+      sourceUris,
+      lastStep: "SOURCES_STAGED",
+      lastError: null,
+    });
+
+    const ttsAssets: TtsAsset[] = [];
+    const renderSegments: ShortsRenderProps["segments"] = [];
+
+    for (const [index, segment] of scriptPlan.segments.entries()) {
+      if (segment.type === "narration") {
+        const fileName = `narration-${String(index).padStart(2, "0")}.mp3`;
+        const localPath = workspace.assetPath(fileName);
+        const durationMs = await dependencies.tts.synthesizeToFile(segment.text, localPath);
+        const uri = await dependencies.mediaStore.uploadLocalFile({
+          localPath,
+          objectName: `tts/${candidate.candidateId}/${fileName}`,
+          contentType: "audio/mpeg",
+        });
+        ttsAssets.push({ segmentIndex: index, uri, durationMs });
+        renderSegments.push({
+          type: "narration",
+          fileName,
+          durationMs,
+          text: segment.text,
+        });
+      } else {
+        const sourceUrl = signedSourceUrls.get(segment.videoId);
+        if (!sourceUrl) {
+          throw new Error(`No confirmed source asset for video ${segment.videoId}`);
+        }
+        const fileName = `source-${String(index).padStart(2, "0")}.mp4`;
+        await extractSourceClip({
+          sourceUrl,
+          startMs: segment.sourceStartMs,
+          endMs: segment.sourceEndMs,
+          outputPath: workspace.assetPath(fileName),
+        });
+        renderSegments.push({
+          type: "source_clip",
+          fileName,
+          durationMs: segment.sourceEndMs - segment.sourceStartMs,
+          subtitle: segment.subtitle,
+        });
+      }
+      await workspace.assertWithinLimit();
+    }
+
+    await dependencies.repository.updateCandidate(candidate.candidateId, {
+      ttsAssets,
+      lastStep: "MEDIA_PREPARED",
+      lastError: null,
+    });
+
+    const outputPath = workspace.outputPath();
+    await dependencies.renderer({
+      publicDir: workspace.publicDir,
+      outputPath,
+      props: {
+        title: scriptPlan.title,
+        hookTitle: scriptPlan.hookTitle ?? scriptPlan.title,
+        productName: candidate.product.productName,
+        segments: renderSegments,
+      },
+      concurrency: 2,
+    });
+    await workspace.assertWithinLimit();
+
+    const outputSizeBytes = (await fs.stat(outputPath)).size;
+    const outputUri = await dependencies.mediaStore.uploadLocalFile({
+      localPath: outputPath,
+      objectName: `output/${candidate.candidateId}/output.mp4`,
+      contentType: "video/mp4",
+    });
+    const outputDeleteAfter = new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000).toISOString();
+    await dependencies.repository.updateCandidate(candidate.candidateId, {
+      status: "REVIEW_READY",
+      outputUri,
+      outputSizeBytes,
+      outputDeleteAfter,
+      lastStep: "OUTPUT_UPLOADED",
+      lastError: null,
+    });
+
+    const signedUrl = await dependencies.mediaStore.signedReadUrl(outputUri);
+    const reviewMessageId = await dependencies.notifier.sendReview({ candidate, signedUrl });
+    await dependencies.repository.updateCandidate(candidate.candidateId, {
+      reviewMessageId,
+      lastStep: "REVIEW_NOTIFIED",
+      lastError: null,
+    });
+
+    await dependencies.mediaStore.deleteCandidateTemporaryObjects(candidate.candidateId);
+    await dependencies.repository.updateCandidate(candidate.candidateId, {
+      sourceUris: [],
+      ttsAssets: [],
+    });
+
+    return { outputUri, outputSizeBytes, reviewMessageId };
+  } catch (error) {
+    const message = errorMessage(error).slice(0, 2_000);
+    await dependencies.repository.updateCandidate(candidate.candidateId, {
+      status: "FAILED",
+      lastStep: "MEDIA_PRODUCTION",
+      lastError: message,
+    });
+    try {
+      await dependencies.notifier.sendFailure({ candidate, message });
+    } catch (notificationError) {
+      logger.error(
+        { candidateId: candidate.candidateId, error: errorMessage(notificationError) },
+        "failed to send media failure notification",
+      );
+    }
+    logger.error({ candidateId: candidate.candidateId, error: message }, "media production failed");
+    throw error;
+  } finally {
+    await workspace.cleanup();
+  }
+};

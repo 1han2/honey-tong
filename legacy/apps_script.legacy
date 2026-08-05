@@ -1,0 +1,207 @@
+// [쇼핑 클립 모니터링 DB] 동일 제품명 중복 승인 방지 및 No. 단일 행 정밀 승인 스크립트
+
+const TELEGRAM_BOT_TOKEN = '8839531460:AAGIMn7oJqFYmOvrv7HFOtZgLM08kpKl1dE'; 
+const TELEGRAM_CHAT_ID   = '5381696679'; 
+const WEB_APP_URL        = 'https://script.google.com/macros/s/AKfycbzvTHz-qhY7dsBTJKXOlslDLV9HCjB5uIoD_x97dvREsuLFE6Ghz0KgMEs_78AU4xdyPw/exec'; 
+const SPREADSHEET_ID     = '1Jtp1ElcSdPJR4z16mLBzg6I5_6R03nSocS-CpZ4oASw';
+
+
+function doGet(e) {
+  return ContentService.createTextOutput("텔레그램 웹훅 서버가 정상 작동 중입니다! 🚀");
+}
+
+// ---------------------------------------------------------
+// 1. 텔레그램 답장(Reply) 감지 시 해당 알림 항목 즉시 승인 (doPost)
+// ---------------------------------------------------------
+function doPost(e) {
+  try {
+    if (!e || !e.postData || !e.postData.contents) {
+      return ContentService.createTextOutput("OK");
+    }
+    const contents = JSON.parse(e.postData.contents);
+    if (!contents.message) {
+      return ContentService.createTextOutput("OK");
+    }
+    
+    const message = contents.message;
+
+    // 텔레그램 '답장(Reply)'인 경우에만 승인 처리 진행
+    if (message.reply_to_message && message.reply_to_message.text) {
+      const origText = message.reply_to_message.text;
+      console.log(`[답글 감지] 메시지: "${message.text}" / 원본: "${origText.substring(0, 40)}..."`);
+      
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      let targetSheet = ss.getActiveSheet(); // 기본값: 현재 활성 탭
+
+      // 원본 알림 제목의 [2026년 8월] 부분에서 탭 이름 추출
+      const tabMatch = origText.match(/\[(.*?)\]/);
+      if (tabMatch && tabMatch) {
+        const matchedSheet = ss.getSheetByName(tabMatch);
+        if (matchedSheet) {
+          targetSheet = matchedSheet;
+        }
+      }
+
+      const lastRow = targetSheet.getLastRow();
+      if (lastRow <= 1) {
+        return ContentService.createTextOutput("OK");
+      }
+
+      // 원본 알림 메시지에서 No. 번호 정밀 추출
+      const noMatch = origText.match(/No[.:\s]*(\d+)/i);
+      const targetNo = noMatch ? noMatch.trim() : null;
+
+      let approvedProductNames = [];
+
+      for (let r = 2; r <= lastRow; r++) {
+        const itemNo = targetSheet.getRange(r, 1).getValue().toString().trim(); // Col A: No.
+        const pName  = targetSheet.getRange(r, 6).getValue().toString().trim(); // Col F: 제품명
+        const vUrl   = targetSheet.getRange(r, 5).getValue().toString().trim(); // Col E: 영상 URL
+        const tLines = targetSheet.getRange(r, 10).getValue().toString().trim(); // Col J: 주요 시점
+
+        let isMatch = false;
+
+        if (targetNo) {
+          if (itemNo === targetNo) isMatch = true;
+        } else {
+          if (vUrl && pName && origText.includes(vUrl) && origText.includes(pName)) {
+            if (!tLines || origText.includes(tLines)) isMatch = true;
+          }
+        }
+
+        if (isMatch) {
+          targetSheet.getRange(r, 13).setValue(true); // Col M: 승인 여부 (TRUE)
+          targetSheet.getRange(r, 14).setValue("승인 완료 (대본 생성 대기)"); // Col N: 대본 상태
+          if (pName) approvedProductNames.push(`No.${itemNo} (${pName})`);
+          if (targetNo) break; // 단일 행 매칭 완료 후 즉시 종료
+        }
+      }
+
+      // 승인이 성공한 경우에만 텔레그램으로 완료 메시지 1회 발송
+      if (approvedProductNames.length > 0) {
+        const replyMsg = `✅ <b>[승인 처리 완료 - ${targetSheet.getName()}]</b>\n` +
+                         `• <b>승인 제품</b>: ${approvedProductNames.join(", ")}\n` +
+                         `• <b>시트 상태</b>: '승인 완료'로 변경되었습니다.\n\n` +
+                         `<i>Gemini Spark가 확인하여 쇼츠 대본 생성을 진행합니다.</i>`;
+        sendTelegramMessage(replyMsg);
+      }
+    }
+
+    return ContentService.createTextOutput("OK");
+  } catch (err) {
+    console.error("doPost 오류: " + err.toString());
+    return ContentService.createTextOutput("OK"); // 에러가 나도 OK 응답으로 텔레그램 무한 재시도 차단
+  }
+}
+
+// ---------------------------------------------------------
+// 2. 텔레그램 메시지 전송 및 이스케이프 공통 함수
+// ---------------------------------------------------------
+function sendTelegramMessage(text) {
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`;
+  UrlFetchApp.fetch(url, {
+    method: "post",
+    contentType: "application/json",
+    payload: JSON.stringify({
+      chat_id: TELEGRAM_CHAT_ID,
+      text: text,
+      parse_mode: "HTML",
+      disable_web_page_preview: true
+    }),
+    muteHttpExceptions: true
+  });
+}
+
+function escapeHtml(str) {
+  if (!str && str !== 0) return "";
+  return str.toString()
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+// ---------------------------------------------------------
+// 3. 신규 행 감지 알림 (sendTelegramOnChange)
+// ---------------------------------------------------------
+function sendTelegramOnChange(e) {
+  const props = PropertiesService.getScriptProperties();
+  try {
+    const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+    const sheet = ss.getActiveSheet();
+    const lastRow = sheet.getLastRow();
+
+    if (lastRow <= 1) return;
+
+    const flagKey = "LAST_NOTIFIED_ROW_" + sheet.getName();
+    const lastNotifiedRow = parseInt(props.getProperty(flagKey) || "1", 10);
+
+    if (lastRow > lastNotifiedRow) {
+      const rowValues = sheet.getRange(lastRow, 1, 1, 14).getValues()[0];
+      const no          = rowValues[0];  // Col A: No.
+      const channelName = rowValues;  // Col B: 채널명
+      const channelUrl  = rowValues;  // Col C: 채널 URL
+      const videoTitle  = rowValues[3];  // Col D: 영상 제목
+      const videoUrl    = rowValues[4];  // Col E: 영상 URL
+      const productName = rowValues[5];  // Col F: 제품명
+      const rawName     = rowValues[6];  // Col G: 실제 표현
+      const brandName   = rowValues[7] || "브랜드 미확인"; // Col H: 브랜드
+      const category    = rowValues[8];  // Col I: 카테고리
+      const timelines   = rowValues[9];  // Col J: 주요 시점
+      const description = rowValues[10]; // Col K: 근거
+
+      if (!productName) return;
+
+      const sheetName = escapeHtml(sheet.getName());
+      const cUrl = escapeHtml(channelUrl) || "#";
+      const vUrl = escapeHtml(videoUrl) || "#";
+      const safeChannelName = escapeHtml(channelName) || '미입력';
+      const safeVideoTitle  = escapeHtml(videoTitle) || '미입력';
+      const safeProductName = escapeHtml(productName) || '미입력';
+      const safeRawName     = escapeHtml(rawName) || '미입력';
+      const safeBrandName   = escapeHtml(brandName);
+      const safeCategory    = escapeHtml(category) || '미입력';
+      const safeTimelines   = escapeHtml(timelines) || '미입력';
+      const safeDescription = escapeHtml(description) || '미입력';
+
+      const telegramHtml = `<b>🛍️ 쇼핑 클립 후보 신규 등록 알림 [${sheetName}]</b>\n` +
+        `• <b>No.${no}</b>\n` +
+        `• <b>채널명</b>: <a href="${cUrl}">${safeChannelName}</a>\n` +
+        `• <b>영상명</b>: <a href="${vUrl}">${safeVideoTitle}</a>\n` +
+        `• <b>제품명</b>: ${safeProductName} (표현: ${safeRawName})\n` +
+        `• <b>브랜드/카테고리</b>: ${safeBrandName} / ${safeCategory}\n` +
+        `• <b>주요 시점</b>: ${safeTimelines}\n` +
+        `• <b>근거</b>: ${safeDescription}`;
+
+      sendTelegramMessage(telegramHtml);
+      props.setProperty(flagKey, lastRow.toString());
+    }
+  } catch (err) {
+    console.error("오류 발생: " + err.toString());
+  }
+}
+
+// ---------------------------------------------------------
+// 4. 대기 중인 텔레그램 재시도 메시지 청소 및 설정 함수
+// ---------------------------------------------------------
+
+// ★ [필수 실행] 텔레그램 서버에 쌓인 밀린 재시도 메시지 완전 삭제
+function clearTelegramPendingUpdates() {
+  if (!TELEGRAM_BOT_TOKEN) return;
+  const delUrl = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/deleteWebhook?drop_pending_updates=true`;
+  const res1 = UrlFetchApp.fetch(delUrl);
+  console.log("밀린 메시지 삭제 결과: " + res1.getContentText());
+  
+  // 웹훅 다시 재등록
+  setTelegramWebhook();
+}
+
+function setTelegramWebhook() {
+  if (!WEB_APP_URL || WEB_APP_URL === "YOUR_WEB_APP_URL") {
+    console.log("WEB_APP_URL을 설정해 주세요.");
+    return;
+  }
+  const url = `https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook?url=${WEB_APP_URL}`;
+  const res = UrlFetchApp.fetch(url);
+  console.log("웹훅 등록 결과: " + res.getContentText());
+}

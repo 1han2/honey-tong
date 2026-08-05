@@ -1,0 +1,55 @@
+name: Download YouTube Video
+on:
+  workflow_dispatch:
+    inputs:
+      video_id:
+        description: "YouTube video ID"
+        required: true
+        type: string
+      candidate_id:
+        description: "Candidate document ID"
+        required: true
+        type: string
+      gcs_bucket:
+        description: "GCS bucket name for upload"
+        required: true
+        type: string
+
+jobs:
+  download:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Install yt-dlp
+        run: |
+          sudo curl -L https://github.com/yt-dlp/yt-dlp/releases/latest/download/yt-dlp \
+            -o /usr/local/bin/yt-dlp
+          sudo chmod a+rx /usr/local/bin/yt-dlp
+
+      - name: Download video
+        run: |
+          yt-dlp \
+            -f "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b" \
+            --no-playlist \
+            --no-warnings \
+            --merge-output-format mp4 \
+            -o "video.mp4" \
+            "https://www.youtube.com/watch?v=${{ inputs.video_id }}"
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: "${{ secrets.GCP_SA_KEY }}"
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload to GCS
+        run: |
+          gcloud storage cp video.mp4 \
+            "gs://${{ inputs.gcs_bucket }}/source/${{ inputs.candidate_id }}/${{ inputs.video_id }}.mp4"
+          echo "✅ Uploaded to gs://${{ inputs.gcs_bucket }}/source/${{ inputs.candidate_id }}/${{ inputs.video_id }}.mp4"
