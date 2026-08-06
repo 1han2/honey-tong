@@ -1,7 +1,18 @@
 import fs from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
 import { renderCandidate, splitNarrationText, validateSourceClipDurations } from "../src/services/media-production-service.js";
+import { splitIntoMicroChunks } from "../remotion/ShortsComposition.js";
 import { candidateFixture, videoFixture } from "./fixtures.js";
+
+describe("splitIntoMicroChunks", () => {
+  it("splits subtitle text into 2-3 word micro chunks", () => {
+    expect(splitIntoMicroChunks("쫀득한 당고 맛에 푹 빠져버린 모습입니다", 3)).toEqual([
+      "쫀득한 당고 맛에",
+      "푹 빠져버린 모습입니다",
+    ]);
+    expect(splitIntoMicroChunks("이거 진짜 대박이에요", 3)).toEqual(["이거 진짜 대박이에요"]);
+  });
+});
 
 describe("splitNarrationText", () => {
   it("splits multi-sentence and long narration text into short chunks", () => {

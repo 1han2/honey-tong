@@ -97,47 +97,79 @@ const HookTitle = ({ value }: { value: string }) => {
   );
 };
 
-const formatSubtitleText = (text: ReactNode): ReactNode => {
-  if (typeof text !== "string") return text;
-  const str = text.replace(/\.+$|\.\s*$/g, "").trim();
-  if (str.includes("\n")) return str;
+export const splitIntoMicroChunks = (text: string, maxWords = 3): string[] => {
+  const clean = text.replace(/\.+$|\.\s*$/g, "").replace(/\r?\n+/g, " ").replaceAll(/\s+/g, " ").trim();
+  if (!clean) return [];
 
-  if (str.length > 14) {
-    const words = str.split(" ");
-    if (words.length > 1) {
-      let currentLength = 0;
-      let splitIndex = 1;
-      const targetMid = str.length / 2;
-      let minDiff = Number.POSITIVE_INFINITY;
+  const words = clean.split(" ");
+  if (words.length <= maxWords) return [clean];
 
-      for (let i = 0; i < words.length - 1; i++) {
-        currentLength += words[i]!.length + 1;
-        const diff = Math.abs(currentLength - targetMid);
-        if (diff < minDiff) {
-          minDiff = diff;
-          splitIndex = i + 1;
-        }
-      }
-      return `${words.slice(0, splitIndex).join(" ")}\n${words.slice(splitIndex).join(" ")}`;
+  const chunks: string[] = [];
+  let current: string[] = [];
+
+  for (const word of words) {
+    current.push(word);
+    if (current.length >= maxWords) {
+      chunks.push(current.join(" "));
+      current = [];
     }
   }
+
+  if (current.length > 0) {
+    if (current.length === 1 && chunks.length > 0) {
+      chunks[chunks.length - 1] += ` ${current[0]}`;
+    } else {
+      chunks.push(current.join(" "));
+    }
+  }
+
+  return chunks;
+};
+
+const formatSubtitleText = (text: ReactNode, isYellow = false): ReactNode => {
+  if (typeof text !== "string") return text;
+  const str = text.replace(/\.+$|\.\s*$/g, "").trim();
+
+  if (!isYellow && str.includes("*")) {
+    const parts = str.split(/(\*[^*]+\*)/g);
+    return parts.map((part, i) => {
+      if (part.startsWith("*") && part.endsWith("*")) {
+        return (
+          <span key={i} style={{ color: "#FFE500" }}>
+            {part.slice(1, -1)}
+          </span>
+        );
+      }
+      return part;
+    });
+  }
+
   return str;
 };
 
 /**
- * Overlay Subtitle: Vertically and Horizontally centered clean White Noto Sans KR (52px) overlay
+ * Overlay Subtitle: Lower-positioned Subtitle with Translucent Black Background Box
  */
-const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?: CSSProperties }) => (
+const VideoOverlayCaption = ({
+  children,
+  isNarration = false,
+  style,
+}: {
+  children: ReactNode;
+  isNarration?: boolean;
+  style?: CSSProperties;
+}) => (
   <div
     style={{
       position: "absolute",
       top: HEADER_HEIGHT,
       height: VIDEO_HEIGHT,
-      left: 60,
-      right: 60,
+      left: 40,
+      right: 40,
       display: "flex",
       justifyContent: "center",
-      alignItems: "center",
+      alignItems: "flex-end",
+      paddingBottom: 220,
       zIndex: 30,
       textAlign: "center",
       pointerEvents: "none",
@@ -146,24 +178,73 @@ const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?:
   >
     <div
       style={{
-        color: "#FFFFFF",
-        fontFamily: captionFont,
-        fontSize: 70,
-        fontWeight: 800,
-        lineHeight: 1.3,
-        letterSpacing: -0.5,
-        textAlign: "center",
-        textShadow: "0px 4px 14px rgba(0, 0, 0, 0.98), 0px 2px 6px rgba(0, 0, 0, 0.95)",
-        filter: "drop-shadow(0px 4px 12px rgba(0, 0, 0, 0.95))",
-        wordBreak: "keep-all",
-        whiteSpace: "pre-wrap",
+        backgroundColor: "rgba(0, 0, 0, 0.82)",
+        borderRadius: 20,
+        padding: "16px 36px",
+        boxShadow: "0px 8px 24px rgba(0, 0, 0, 0.7)",
+        display: "inline-block",
         maxWidth: 960,
       }}
     >
-      {formatSubtitleText(children)}
+      <div
+        style={{
+          color: isNarration ? "#FFE500" : "#FFFFFF",
+          fontFamily: captionFont,
+          fontSize: 70,
+          fontWeight: 800,
+          lineHeight: 1.3,
+          letterSpacing: -0.5,
+          textAlign: "center",
+          textShadow: "0px 3px 10px rgba(0, 0, 0, 0.9)",
+          filter: "drop-shadow(0px 3px 8px rgba(0, 0, 0, 0.9))",
+          wordBreak: "keep-all",
+          whiteSpace: "pre-wrap",
+        }}
+      >
+        {formatSubtitleText(children, isNarration)}
+      </div>
     </div>
   </div>
 );
+
+const MicroChunkSubtitles = ({
+  text,
+  durationInFrames,
+  isNarration,
+}: {
+  text: string;
+  durationInFrames: number;
+  isNarration: boolean;
+}) => {
+  const chunks = splitIntoMicroChunks(text, 3);
+  if (chunks.length <= 1) {
+    return <VideoOverlayCaption isNarration={isNarration}>{text}</VideoOverlayCaption>;
+  }
+
+  const totalChars = chunks.reduce((sum, c) => sum + c.length, 0);
+  let currentFrom = 0;
+
+  return (
+    <>
+      {chunks.map((chunk, index) => {
+        const isLast = index === chunks.length - 1;
+        const chunkRatio = chunk.length / Math.max(1, totalChars);
+        const chunkFrames = isLast
+          ? Math.max(1, durationInFrames - currentFrom)
+          : Math.max(1, Math.round(durationInFrames * chunkRatio));
+
+        const fromFrame = currentFrom;
+        currentFrom += chunkFrames;
+
+        return (
+          <Sequence key={`${index}-${chunk}`} from={fromFrame} durationInFrames={chunkFrames}>
+            <VideoOverlayCaption isNarration={isNarration}>{chunk}</VideoOverlayCaption>
+          </Sequence>
+        );
+      })}
+    </>
+  );
+};
 
 export const ShortsComposition = (props: ShortsRenderProps) => {
   const { fps } = useVideoConfig();
@@ -214,7 +295,7 @@ export const ShortsComposition = (props: ShortsRenderProps) => {
                     width: WIDTH,
                   }}
                 />
-                <VideoOverlayCaption>{segment.subtitle}</VideoOverlayCaption>
+                <MicroChunkSubtitles text={segment.subtitle} durationInFrames={durationInFrames} isNarration={false} />
               </AbsoluteFill>
             </Sequence>
           );
@@ -241,7 +322,7 @@ export const ShortsComposition = (props: ShortsRenderProps) => {
                 />
               ) : null}
               <Audio src={staticFile(segment.fileName)} />
-              <VideoOverlayCaption>{segment.text}</VideoOverlayCaption>
+              <MicroChunkSubtitles text={segment.text} durationInFrames={durationInFrames} isNarration={true} />
             </AbsoluteFill>
           </Sequence>
         );

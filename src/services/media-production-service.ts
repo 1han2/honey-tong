@@ -139,26 +139,15 @@ export const renderCandidate = async (
       lastError: null,
     });
 
-    const expandedSegments: ScriptPlan["segments"] = [];
-    for (const segment of scriptPlan.segments) {
-      if (segment.type === "narration") {
-        const chunks = splitNarrationText(segment.text);
-        for (const chunk of chunks) {
-          expandedSegments.push({ type: "narration", text: chunk });
-        }
-      } else {
-        expandedSegments.push(segment);
-      }
-    }
-
     const ttsAssets: TtsAsset[] = [];
     const renderSegments: ShortsRenderProps["segments"] = [];
 
-    for (const [index, segment] of expandedSegments.entries()) {
+    for (const [index, segment] of scriptPlan.segments.entries()) {
       if (segment.type === "narration") {
+        const cleanText = segment.text.replace(/\r?\n+/g, " ").replaceAll(/\s+/g, " ").trim();
         const fileName = `narration-${String(index).padStart(2, "0")}.mp3`;
         const localPath = workspace.assetPath(fileName);
-        const durationMs = await dependencies.tts.synthesizeToFile(segment.text, localPath);
+        const durationMs = await dependencies.tts.synthesizeToFile(cleanText, localPath);
         const uri = await dependencies.mediaStore.uploadLocalFile({
           localPath,
           objectName: `tts/${candidate.candidateId}/${fileName}`,
@@ -170,8 +159,8 @@ export const renderCandidate = async (
         let anchorVideoId = candidate.videoId;
         let anchorStartMs = candidate.product.evidence[0]?.startMs ?? 0;
 
-        const nextSegment = expandedSegments[index + 1];
-        const prevSegment = expandedSegments[index - 1];
+        const nextSegment = scriptPlan.segments[index + 1];
+        const prevSegment = scriptPlan.segments[index - 1];
         if (nextSegment?.type === "source_clip") {
           anchorVideoId = nextSegment.videoId;
           anchorStartMs = Math.max(0, nextSegment.sourceStartMs - durationMs);
@@ -196,7 +185,7 @@ export const renderCandidate = async (
           fileName,
           videoFileName: bgSourceUrl ? bgFileName : undefined,
           durationMs,
-          text: segment.text,
+          text: cleanText,
         });
       } else {
         const sourceUrl = signedSourceUrls.get(segment.videoId);
