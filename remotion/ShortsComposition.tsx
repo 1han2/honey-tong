@@ -7,6 +7,8 @@ import {
   staticFile,
   useVideoConfig,
 } from "remotion";
+import { loadFont as loadBlackHanSans } from "@remotion/google-fonts/BlackHanSans";
+import { loadFont as loadNotoSansKR } from "@remotion/google-fonts/NotoSansKR";
 import type { ShortsRenderProps } from "./types.js";
 import { framesForDuration } from "./types.js";
 
@@ -15,16 +17,17 @@ const HEIGHT = 1_920;
 const HEADER_HEIGHT = 440;
 const VIDEO_HEIGHT = 1_160;
 
-const titleFont = "'Black Han Sans', sans-serif";
-const captionFont = "'Noto Sans KR', sans-serif";
-
-const FontStyles = () => (
-  <style>
-    {`
-      @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@700;800&display=swap');
-    `}
-  </style>
-);
+// Load Google Fonts reliably in headless Chromium with subset optimization & automatic delayRender()
+const { fontFamily: titleFont } = loadBlackHanSans("normal", {
+  weights: ["400"],
+  subsets: ["korean"],
+  ignoreTooManyRequestsWarning: true,
+});
+const { fontFamily: captionFont } = loadNotoSansKR("normal", {
+  weights: ["800"],
+  subsets: ["korean"],
+  ignoreTooManyRequestsWarning: true,
+});
 
 /**
  * Top Hook Title: ULTRA MASSIVE 140px Headline
@@ -126,7 +129,6 @@ export const ShortsComposition = (props: ShortsRenderProps) => {
 
   return (
     <AbsoluteFill style={{ backgroundColor: "#000000" }}>
-      <FontStyles />
       {props.segments.map((segment, index) => {
         const durationInFrames = framesForDuration(segment.durationMs, fps);
         const sequenceFrom = from;

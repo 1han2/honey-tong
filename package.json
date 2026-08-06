@@ -24,7 +24,6 @@
     "remotion:studio": "remotion studio remotion/index.ts",
     "remotion:render": "remotion render remotion/index.ts AffiliateShorts"
   },
-
   "dependencies": {
     "@google-cloud/firestore": "^8.7.0",
     "@google-cloud/storage": "^7.21.0",
@@ -32,6 +31,7 @@
     "@google/genai": "^2.15.0",
     "@modelcontextprotocol/sdk": "^1.30.0",
     "@remotion/bundler": "^4.0.504",
+    "@remotion/google-fonts": "^4.0.506",
     "@remotion/renderer": "^4.0.504",
     "dotenv": "^17.4.2",
     "fast-xml-parser": "^5.10.1",
