@@ -12,8 +12,8 @@ import { framesForDuration } from "./types";
 
 const WIDTH = 1_080;
 const HEIGHT = 1_920;
-const HEADER_HEIGHT = 320;
-const VIDEO_HEIGHT = 1_280;
+const HEADER_HEIGHT = 440;
+const VIDEO_HEIGHT = 1_160;
 
 const titleFont = "'Black Han Sans', sans-serif";
 const captionFont = "'Noto Sans KR', sans-serif";
@@ -21,16 +21,31 @@ const captionFont = "'Noto Sans KR', sans-serif";
 const FontStyles = () => (
   <style>
     {`
-      @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@700;800;900&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@700;800&display=swap');
     `}
   </style>
 );
 
 /**
- * Top Hook Title: Large impact Black Han Sans font (larger size + soft black shadow, no thick stroke)
+ * Top Hook Title: Max 140px Headline with dynamic character-length scaling.
+ * Fits within 1050px bounds seamlessly.
  */
 const HookTitle = ({ value }: { value: string }) => {
-  const lines = value.split(/\r?\n/).filter(Boolean).slice(0, 2);
+  const rawLines = value.split(/\r?\n/).filter(Boolean);
+  let line1 = rawLines[0] || value;
+  let line2 = rawLines[1] || "";
+
+  // Split long lines if no explicit newline is given
+  if (!line2 && line1.length > 14) {
+    const spaceIdx = line1.lastIndexOf(" ", Math.ceil(line1.length / 2));
+    if (spaceIdx > 0) {
+      line2 = line1.slice(spaceIdx + 1);
+      line1 = line1.slice(0, spaceIdx);
+    }
+  }
+
+  const lines = [line1, line2].filter(Boolean);
+
   return (
     <div
       style={{
@@ -40,7 +55,7 @@ const HookTitle = ({ value }: { value: string }) => {
         flexDirection: "column",
         height: HEADER_HEIGHT,
         justifyContent: "center",
-        padding: "20px 36px 12px",
+        padding: "6px 16px",
         textAlign: "center",
         width: WIDTH,
         position: "absolute",
@@ -49,35 +64,45 @@ const HookTitle = ({ value }: { value: string }) => {
         zIndex: 20,
       }}
     >
-      {lines.map((line, index) => (
-        <div
-          key={`${index}-${line}`}
-          style={{
-            color: index === 0 ? "#FFE500" : "#FFFFFF",
-            fontFamily: titleFont,
-            fontSize: lines.length > 1 ? 76 : 86,
-            fontWeight: 900,
-            letterSpacing: -1,
-            lineHeight: 1.18,
-            textShadow: "0px 4px 14px rgba(0, 0, 0, 0.98), 0px 2px 4px rgba(0, 0, 0, 0.9)",
-            filter: "drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.95))",
-          }}
-        >
-          {line}
-        </div>
-      ))}
+      {lines.map((line, index) => {
+        // Dynamic font size: Max 140px, scaled down gracefully for longer lines
+        const charCount = Math.max(line.length, 1);
+        const autoFitSize = Math.floor(1050 / (charCount * 0.78));
+        const finalSize = Math.max(68, Math.min(140, autoFitSize));
+
+        return (
+          <div
+            key={`${index}-${line}`}
+            style={{
+              color: index === 0 ? "#FFE500" : "#FFFFFF",
+              fontFamily: titleFont,
+              fontSize: finalSize,
+              fontWeight: 900,
+              letterSpacing: -4,
+              lineHeight: 1.06,
+              textShadow: "0px 4px 18px rgba(0, 0, 0, 0.98), 0px 2px 5px rgba(0, 0, 0, 0.9)",
+              filter: "drop-shadow(0px 4px 12px rgba(0, 0, 0, 0.95))",
+              maxWidth: 1050,
+              wordBreak: "keep-all",
+              whiteSpace: "nowrap",
+            }}
+          >
+            {line}
+          </div>
+        );
+      })}
     </div>
   );
 };
 
 /**
- * Overlay Subtitle: Clean White Noto Sans KR font with soft black drop shadow overlayed on video
+ * Overlay Subtitle: Compact clean White Noto Sans KR (48px) overlayed on video
  */
 const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?: CSSProperties }) => (
   <div
     style={{
       position: "absolute",
-      top: 1240,
+      top: 1260,
       left: 40,
       right: 40,
       display: "flex",
@@ -92,7 +117,7 @@ const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?:
       style={{
         color: "#FFFFFF",
         fontFamily: captionFont,
-        fontSize: 54,
+        fontSize: 48,
         fontWeight: 800,
         lineHeight: 1.3,
         letterSpacing: -0.5,
