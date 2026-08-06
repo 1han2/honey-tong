@@ -18,6 +18,7 @@
     "start:api": "node dist/src/api.js",
     "job:scan": "tsx src/jobs/scan.ts",
     "job:produce": "tsx src/jobs/produce.ts",
+    "worker:downloader": "tsx scripts/mac-downloader-daemon.ts",
     "import:channels": "tsx scripts/import-channels.ts",
     "register:source": "tsx scripts/register-source.ts",
     "sync-prompts": "tsx scripts/sync-prompts.ts",

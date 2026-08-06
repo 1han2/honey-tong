@@ -46,10 +46,15 @@ export class GcsMediaStore {
   }): Promise<string> {
     // 0. Check if source asset already exists in GCS bucket to avoid redundant downloads
     const existingPrefix = `source/${input.candidateId}/${input.videoId}.`;
-    const [existingFiles] = await this.storage.bucket(this.bucketName).getFiles({ prefix: existingPrefix });
-    if (existingFiles.length > 0 && existingFiles[0]) {
-      logger.info({ candidateId: input.candidateId, videoId: input.videoId }, "source asset already staged in GCS, reusing existing file");
-      return `gs://${this.bucketName}/${existingFiles[0].name}`;
+    for (let check = 0; check < 5; check++) {
+      const [existingFiles] = await this.storage.bucket(this.bucketName).getFiles({ prefix: existingPrefix });
+      if (existingFiles.length > 0 && existingFiles[0]) {
+        logger.info({ candidateId: input.candidateId, videoId: input.videoId }, "source asset already staged in GCS, reusing existing file");
+        return `gs://${this.bucketName}/${existingFiles[0].name}`;
+      }
+      if (check < 4) {
+        await new Promise((res) => setTimeout(res, 3000));
+      }
     }
 
     if (isYouTubeWatchUrl(input.sourceUrl)) {
