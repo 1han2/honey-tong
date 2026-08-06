@@ -31,6 +31,7 @@ export class SupertoneTtsClient implements TtsSynthesizer {
       body: JSON.stringify({
         text,
         language: "ko",
+        speed: speakingRate,
       }),
       signal: AbortSignal.timeout(30_000),
     });
@@ -41,31 +42,7 @@ export class SupertoneTtsClient implements TtsSynthesizer {
     }
 
     const arrayBuffer = await response.arrayBuffer();
-
-    if (speakingRate !== 1.0 && arrayBuffer.byteLength > 256) {
-      const rawPath = `${outputPath}.raw.mp3`;
-      await fs.writeFile(rawPath, Buffer.from(arrayBuffer));
-      try {
-        await runCommand("ffmpeg", [
-          "-hide_banner",
-          "-loglevel",
-          "error",
-          "-i",
-          rawPath,
-          "-filter:a",
-          `atempo=${speakingRate.toFixed(2)}`,
-          "-y",
-          outputPath,
-        ]);
-        await fs.unlink(rawPath).catch(() => {});
-      } catch (err) {
-        logger.warn({ error: String(err) }, "ffmpeg atempo speedup failed, using raw Supertone audio");
-        await fs.rename(rawPath, outputPath).catch(() => fs.writeFile(outputPath, Buffer.from(arrayBuffer)));
-      }
-    } else {
-      await fs.writeFile(outputPath, Buffer.from(arrayBuffer));
-    }
-
+    await fs.writeFile(outputPath, Buffer.from(arrayBuffer));
     return probeDurationMs(outputPath);
   }
 }

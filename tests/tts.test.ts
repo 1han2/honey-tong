@@ -48,7 +48,7 @@ describe("SupertoneTtsClient", () => {
           "x-sup-api-key": "test-supertone-key",
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ text: "안녕하세요", language: "ko" }),
+        body: JSON.stringify({ text: "안녕하세요", language: "ko", speed: 1.05 }),
       }),
     );
     expect(duration).toBe(1500);
