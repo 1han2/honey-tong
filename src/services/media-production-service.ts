@@ -156,17 +156,24 @@ export const renderCandidate = async (
         if (!sourceUrl) {
           throw new Error(`No confirmed source asset for video ${segment.videoId}`);
         }
+        const sourceDuration = sourceDurations.get(segment.videoId) ?? Number.POSITIVE_INFINITY;
+        const rawDurationMs = segment.sourceEndMs - segment.sourceStartMs;
+        const estimatedNeededMs = Math.max(3_000, Math.round(segment.subtitle.length * 180));
+        const effectiveEndMs = Math.min(
+          sourceDuration,
+          Math.max(segment.sourceEndMs, segment.sourceStartMs + estimatedNeededMs),
+        );
         const fileName = `source-${String(index).padStart(2, "0")}.mp4`;
         await extractSourceClip({
           sourceUrl,
           startMs: segment.sourceStartMs,
-          endMs: segment.sourceEndMs,
+          endMs: effectiveEndMs,
           outputPath: workspace.assetPath(fileName),
         });
         renderSegments.push({
           type: "source_clip",
           fileName,
-          durationMs: segment.sourceEndMs - segment.sourceStartMs,
+          durationMs: effectiveEndMs - segment.sourceStartMs,
           subtitle: segment.subtitle,
         });
       }
