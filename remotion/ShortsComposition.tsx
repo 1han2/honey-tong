@@ -7,27 +7,27 @@ import {
   staticFile,
   useVideoConfig,
 } from "remotion";
-import type { ShortsRenderProps } from "./types.js";
-import { framesForDuration } from "./types.js";
+import type { ShortsRenderProps } from "./types";
+import { framesForDuration } from "./types";
 
 const WIDTH = 1_080;
 const HEIGHT = 1_920;
 const HEADER_HEIGHT = 320;
 const VIDEO_HEIGHT = 1_280;
 
-const titleFont = "'Noto Sans KR', sans-serif";
+const titleFont = "'Black Han Sans', sans-serif";
 const captionFont = "'Noto Sans KR', sans-serif";
 
 const FontStyles = () => (
   <style>
     {`
-      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@700;800;900&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@700;800;900&display=swap');
     `}
   </style>
 );
 
 /**
- * Top Hook Title: Clean proportional text with soft black drop shadow (NO thick stroke)
+ * Top Hook Title: Large impact Black Han Sans font (larger size + soft black shadow, no thick stroke)
  */
 const HookTitle = ({ value }: { value: string }) => {
   const lines = value.split(/\r?\n/).filter(Boolean).slice(0, 2);
@@ -40,7 +40,7 @@ const HookTitle = ({ value }: { value: string }) => {
         flexDirection: "column",
         height: HEADER_HEIGHT,
         justifyContent: "center",
-        padding: "24px 40px 16px",
+        padding: "20px 36px 12px",
         textAlign: "center",
         width: WIDTH,
         position: "absolute",
@@ -55,11 +55,11 @@ const HookTitle = ({ value }: { value: string }) => {
           style={{
             color: index === 0 ? "#FFE500" : "#FFFFFF",
             fontFamily: titleFont,
-            fontSize: lines.length > 1 ? 58 : 66,
+            fontSize: lines.length > 1 ? 76 : 86,
             fontWeight: 900,
             letterSpacing: -1,
-            lineHeight: 1.25,
-            textShadow: "0px 4px 12px rgba(0, 0, 0, 0.95), 0px 2px 4px rgba(0, 0, 0, 0.9)",
+            lineHeight: 1.18,
+            textShadow: "0px 4px 14px rgba(0, 0, 0, 0.98), 0px 2px 4px rgba(0, 0, 0, 0.9)",
             filter: "drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.95))",
           }}
         >
@@ -71,8 +71,7 @@ const HookTitle = ({ value }: { value: string }) => {
 };
 
 /**
- * Overlay Subtitle: Clean White font with soft black drop shadow overlayed on video (NO thick stroke, NO black box)
- * Matches reference Shorts Pe5mnWKTCfg & d21zthnRKiQ exactly.
+ * Overlay Subtitle: Clean White Noto Sans KR font with soft black drop shadow overlayed on video
  */
 const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?: CSSProperties }) => (
   <div
