@@ -25,6 +25,13 @@ app.post("/telegram/webhook", async (request, reply) => {
   const secretHeader = request.headers["x-telegram-bot-api-secret-token"];
   const secret = Array.isArray(secretHeader) ? secretHeader[0] : secretHeader;
   if (!verifyWebhookSecret(config, secret)) {
+    request.log.warn(
+      {
+        receivedHeaderLength: secret?.length ?? 0,
+        expectedLength: config.TELEGRAM_WEBHOOK_SECRET?.length ?? 0,
+      },
+      "webhook secret verification failed",
+    );
     return reply.code(401).send({ ok: false });
   }
 
