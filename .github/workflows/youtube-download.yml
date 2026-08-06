@@ -1,6 +1,8 @@
 name: Download YouTube Video
 
 on:
+  repository_dispatch:
+    types: [download-video]
   workflow_dispatch:
     inputs:
       video_id:
@@ -12,8 +14,6 @@ on:
       gcs_bucket:
         description: "GCS bucket name for upload"
         required: true
-  repository_dispatch:
-    types: [download-video]
 
 jobs:
   download:
