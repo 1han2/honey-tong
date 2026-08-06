@@ -141,6 +141,77 @@ export class ShortsRepository {
     });
   }
 
+  async createManualCandidate(input: {
+    videoId: string;
+    videoUrl: string;
+    productName: string;
+  }): Promise<Candidate> {
+    const timestamp = nowIso();
+    const candidateId = `${input.videoId}_manual_${Date.now().toString(36)}`;
+    const ref = this.firestore.collection("candidates").doc(candidateId);
+
+    const videoRef = this.firestore.collection("videos").doc(input.videoId);
+    const videoSnapshot = await videoRef.get();
+    let celebrityName = "출연자";
+    if (videoSnapshot.exists) {
+      const videoData = videoSnapshot.data();
+      if (videoData?.channelId) {
+        const channelSnapshot = await this.firestore.collection("channels").doc(videoData.channelId).get();
+        if (channelSnapshot.exists && channelSnapshot.data()?.celebrityName) {
+          celebrityName = channelSnapshot.data()!.celebrityName;
+        }
+      }
+    } else {
+      await videoRef.set({
+        videoId: input.videoId,
+        channelId: "manual",
+        title: input.productName,
+        videoUrl: input.videoUrl,
+        publishedAt: timestamp,
+        durationMs: null,
+        analyzedAt: timestamp,
+        analysisStatus: "ANALYZED",
+        analysisAttemptCount: 1,
+        lastError: null,
+      });
+    }
+
+    const candidate = candidateSchema.parse({
+      candidateId,
+      videoId: input.videoId,
+      celebrityName,
+      product: {
+        productName: input.productName,
+        productNameRaw: input.productName,
+        brand: null,
+        category: "기타",
+        evidence: [
+          {
+            videoId: input.videoId,
+            startMs: 0,
+            quote: "[수동 등록]",
+            kind: "scene",
+          },
+        ],
+      },
+      status: "APPROVED",
+      sourceAssets: [
+        {
+          videoId: input.videoId,
+          sourceUrl: input.videoUrl,
+          rightsStatus: "CONFIRMED",
+        },
+      ],
+      promptVersion: "manual",
+      modelVersion: "manual",
+      createdAt: timestamp,
+      updatedAt: timestamp,
+    });
+
+    await ref.set(candidate);
+    return candidate;
+  }
+
   async getCandidate(candidateId: string): Promise<Candidate | null> {
     const snapshot = await this.firestore.collection("candidates").doc(candidateId).get();
     return snapshot.exists ? candidateSchema.parse(snapshot.data()) : null;

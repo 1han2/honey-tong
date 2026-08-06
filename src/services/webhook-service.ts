@@ -16,9 +16,16 @@ const callbackQuerySchema = z.object({
     .optional(),
 });
 
+const telegramMessageSchema = z.object({
+  message_id: z.number().int(),
+  chat: z.object({ id: z.union([z.number(), z.string()]) }),
+  text: z.string().optional(),
+});
+
 export const telegramUpdateSchema = z.object({
   update_id: z.number().int(),
   callback_query: callbackQuerySchema.optional(),
+  message: telegramMessageSchema.optional(),
 });
 export type TelegramUpdate = z.infer<typeof telegramUpdateSchema>;
 
@@ -30,10 +37,10 @@ export type WebhookRepository = {
   queueRerender(candidateId: string): Promise<"APPROVED" | "NOT_ALLOWED" | "NOT_FOUND">;
   completeCandidate(candidateId: string): Promise<"COMPLETED" | "NOT_ALLOWED" | "NOT_FOUND">;
   updateCandidate(candidateId: string, patch: { status?: "FAILED"; lastStep?: string; lastError?: string }): Promise<void>;
+  createManualCandidate?(input: { videoId: string; videoUrl: string; productName: string }): Promise<any>;
   getCandidate?(candidateId: string): Promise<any | null>;
   getVideo?(videoId: string): Promise<any | null>;
 };
-
 
 export type WebhookDependencies = {
   repository: WebhookRepository;
@@ -46,6 +53,34 @@ export type WebhookDependencies = {
   config: AppConfig;
 };
 
+export const parseManualInput = (
+  text: string,
+): { videoId: string; videoUrl: string; productName: string } | null => {
+  const urlMatch = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[A-Za-z0-9_-]{6,20}[^\s]*)/i.exec(text);
+  if (!urlMatch || !urlMatch[1]) return null;
+
+  const rawUrl = urlMatch[1];
+  let videoId: string;
+  try {
+    const parsedUrl = new URL(rawUrl);
+    const host = parsedUrl.hostname.toLowerCase();
+    const extracted = host === "youtu.be" ? parsedUrl.pathname.slice(1).split("/")[0] : parsedUrl.searchParams.get("v");
+    if (!extracted || !/^[A-Za-z0-9_-]{6,20}$/.test(extracted)) return null;
+    videoId = extracted;
+  } catch {
+    return null;
+  }
+
+  let remaining = text.replace(rawUrl, "").replace(/^\/(?:make|create)\b/i, "").trim();
+  remaining = remaining.replace(/\r?\n+/g, " ").trim();
+  if (!remaining) return null;
+
+  return {
+    videoId,
+    videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
+    productName: remaining,
+  };
+};
 
 const safeEqual = (left: string, right: string): boolean => {
   const leftBuffer = Buffer.from(left);
@@ -77,10 +112,55 @@ export const handleTelegramUpdate = async (
   update: TelegramUpdate,
   dependencies: WebhookDependencies,
 ): Promise<void> => {
+  const configuredChatId = requireConfig(dependencies.config, "TELEGRAM_CHAT_ID").TELEGRAM_CHAT_ID;
+
+  // Handle incoming text messages for manual video creation
+  const messageObj = update.message;
+  if (messageObj && messageObj.text) {
+    const messageChatId = String(messageObj.chat.id);
+    if (messageChatId !== configuredChatId) {
+      logger.warn({ messageChatId }, "ignored message from unauthorized chat");
+      return;
+    }
+
+    const parsed = parseManualInput(messageObj.text);
+    if (!parsed) {
+      if (dependencies.telegram.sendStatus) {
+        await dependencies.telegram.sendStatus(
+          `💡 <b>수동 영상 제작 요청 방법</b>\n\n유튜브 링크와 제품명을 함께 보내주시면 쇼츠 영상을 바로 제작합니다.\n\n<b>예시:</b>\nhttps://www.youtube.com/watch?v=...\n나이키 에어맥스`,
+        );
+      }
+      return;
+    }
+
+    if (!dependencies.repository.createManualCandidate) {
+      if (dependencies.telegram.sendStatus) {
+        await dependencies.telegram.sendStatus("❌ 수동 입력 기능이 활성화되지 않았습니다.");
+      }
+      return;
+    }
+
+    try {
+      const candidate = await dependencies.repository.createManualCandidate(parsed);
+      await dependencies.jobClient.startProduce(candidate.candidateId);
+      if (dependencies.telegram.sendStatus) {
+        await dependencies.telegram.sendStatus(
+          `🚀 <b>수동 영상 제작 시작</b>\n\n• <b>제품</b>: ${escapeHtml(parsed.productName)}\n• <b>영상</b>: ${escapeHtml(parsed.videoUrl)}\n\nShorts 대본 생성, TTS 및 Remotion 렌더링 작업을 시작합니다!`,
+        );
+      }
+    } catch (error) {
+      const msg = errorMessage(error).slice(0, 2_000);
+      logger.error({ error: msg, parsed }, "failed to process manual candidate trigger");
+      if (dependencies.telegram.sendStatus) {
+        await dependencies.telegram.sendStatus(`❌ 수동 영상 제작 시작 실패: ${escapeHtml(msg)}`);
+      }
+    }
+    return;
+  }
+
   const callback = update.callback_query;
   if (!callback) return;
 
-  const configuredChatId = requireConfig(dependencies.config, "TELEGRAM_CHAT_ID").TELEGRAM_CHAT_ID;
   const callbackChatId = callback.message ? String(callback.message.chat.id) : "";
   if (callbackChatId !== configuredChatId) {
     logger.warn({ callbackChatId }, "ignored callback from unauthorized chat");
@@ -142,8 +222,6 @@ export const handleTelegramUpdate = async (
         );
       }
     } catch (error) {
-
-
       const message = errorMessage(error).slice(0, 2_000);
       await dependencies.repository.updateCandidate(candidateId, {
         status: "FAILED",

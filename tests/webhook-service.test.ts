@@ -106,4 +106,42 @@ describe("Telegram webhook", () => {
     );
     expect(telegram.clearInlineKeyboard).not.toHaveBeenCalled();
   });
+
+  it("handles manual video creation from text messages with YouTube URL and product name", async () => {
+    const repository = {
+      approveCandidate: vi.fn(),
+      queueRerender: vi.fn(),
+      completeCandidate: vi.fn(),
+      updateCandidate: vi.fn(),
+      createManualCandidate: vi.fn().mockResolvedValue({ candidateId: "manual-c1" }),
+    };
+    const jobClient = { startProduce: vi.fn().mockResolvedValue(undefined) };
+    const telegram = {
+      answerCallbackQuery: vi.fn(),
+      clearInlineKeyboard: vi.fn(),
+      sendStatus: vi.fn().mockResolvedValue(100),
+    };
+
+    await handleTelegramUpdate(
+      {
+        update_id: 10,
+        message: {
+          message_id: 50,
+          chat: { id: 1234 },
+          text: "https://www.youtube.com/watch?v=abc12345\n나이키 운동화",
+        },
+      },
+      { repository, jobClient, telegram, config },
+    );
+
+    expect(repository.createManualCandidate).toHaveBeenCalledWith({
+      videoId: "abc12345",
+      videoUrl: "https://www.youtube.com/watch?v=abc12345",
+      productName: "나이키 운동화",
+    });
+    expect(jobClient.startProduce).toHaveBeenCalledWith("manual-c1");
+    expect(telegram.sendStatus).toHaveBeenCalledWith(
+      expect.stringContaining("수동 영상 제작 시작"),
+    );
+  });
 });
