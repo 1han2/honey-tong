@@ -1,9 +1,9 @@
 name: Download YouTube Video
 
 on:
-  workflow_dispatch:
   repository_dispatch:
     types: [download-video]
+  workflow_dispatch: {}
 
 jobs:
   download:
