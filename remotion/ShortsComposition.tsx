@@ -7,7 +7,7 @@ import {
   staticFile,
   useVideoConfig,
 } from "remotion";
-import { loadFont as loadBlackHanSans } from "@remotion/google-fonts/BlackHanSans";
+import { loadFont as loadJuaFont } from "@remotion/google-fonts/Jua";
 import { loadFont as loadNotoSansKR } from "@remotion/google-fonts/NotoSansKR";
 import type { ShortsRenderProps } from "./types.js";
 import { framesForDuration } from "./types.js";
@@ -18,7 +18,7 @@ const HEADER_HEIGHT = 440;
 const VIDEO_HEIGHT = 1_160;
 
 // Load Google Fonts reliably in headless Chromium with subset optimization & automatic delayRender()
-const { fontFamily: titleFont } = loadBlackHanSans("normal", {
+const { fontFamily: titleFont } = loadJuaFont("normal", {
   weights: ["400"],
   subsets: ["korean"],
   ignoreTooManyRequestsWarning: true,
@@ -30,7 +30,7 @@ const { fontFamily: captionFont } = loadNotoSansKR("normal", {
 });
 
 /**
- * Top Hook Title: ULTRA MASSIVE 140px Headline
+ * Top Hook Title: ULTRA MASSIVE 140px Headline using Google 'Jua' Font
  * Fits within 1050px bounds seamlessly based on line character count.
  */
 const HookTitle = ({ value }: { value: string }) => {
@@ -56,7 +56,7 @@ const HookTitle = ({ value }: { value: string }) => {
     >
       {lines.map((line, index) => {
         const charCount = Math.max(line.length, 1);
-        const autoFitSize = Math.floor(1050 / (charCount * 0.76));
+        const autoFitSize = Math.floor(1050 / (charCount * 0.74));
         const finalSize = Math.max(76, Math.min(140, autoFitSize));
 
         return (
@@ -66,9 +66,9 @@ const HookTitle = ({ value }: { value: string }) => {
               color: index === 0 ? "#FFE500" : "#FFFFFF",
               fontFamily: titleFont,
               fontSize: finalSize,
-              fontWeight: 900,
-              letterSpacing: -4,
-              lineHeight: 1.06,
+              fontWeight: 400,
+              letterSpacing: -2,
+              lineHeight: 1.08,
               textShadow: "0px 4px 18px rgba(0, 0, 0, 0.98), 0px 2px 5px rgba(0, 0, 0, 0.9)",
               filter: "drop-shadow(0px 4px 12px rgba(0, 0, 0, 0.95))",
               maxWidth: 1050,
