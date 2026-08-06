@@ -90,11 +90,17 @@ const channelIdIndex = column("YouTube Channel ID");
 const channels: Channel[] = [];
 const invalidRows: Array<{ row: number; errors: string[] }> = [];
 
+export const cleanCelebrityName = (name: string): string =>
+  name
+    .replace(/\s*[\(\（\[].*?[\)\）\]]\s*/g, "")
+    .replace(/\s*[\(\（\[].*$/g, "")
+    .trim();
+
 for (let index = headerIndex + 1; index < rows.length; index += 1) {
   const row = rows[index];
   if (!row || row.every((cell) => cell === null || String(cell).trim() === "")) continue;
   const parsed = channelSchema.safeParse({
-    celebrityName: String(row[celebrityIndex] ?? "").trim(),
+    celebrityName: cleanCelebrityName(String(row[celebrityIndex] ?? "").trim()),
     channelName: String(row[channelNameIndex] ?? "").trim(),
     channelUrl: String(row[channelUrlIndex] ?? "").trim(),
     youtubeChannelId: String(row[channelIdIndex] ?? "").trim(),

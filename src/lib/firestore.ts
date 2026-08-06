@@ -1,3 +1,4 @@
+import { execSync } from "node:child_process";
 import { Firestore } from "@google-cloud/firestore";
 import type { AppConfig } from "../config.js";
 import type {
@@ -20,28 +21,47 @@ export class ShortsRepository {
   readonly firestore: Firestore;
 
   constructor(config: Pick<AppConfig, "GOOGLE_CLOUD_PROJECT" | "FIRESTORE_DATABASE_ID">) {
+    let token: string | undefined;
+    if (typeof process !== "undefined" && !process.env.K_SERVICE) {
+      try {
+        token = execSync("gcloud auth print-access-token", { encoding: "utf8" }).trim();
+      } catch {}
+    }
+
     this.firestore = new Firestore({
       ...(config.GOOGLE_CLOUD_PROJECT ? { projectId: config.GOOGLE_CLOUD_PROJECT } : {}),
       databaseId: config.FIRESTORE_DATABASE_ID,
+      ...(token ? { token } : {}),
       ignoreUndefinedProperties: true,
     });
   }
 
   async upsertChannels(channels: Channel[]): Promise<void> {
-    const batch = this.firestore.batch();
+    const token = execSync("gcloud auth print-access-token", { encoding: "utf8" }).trim();
+    const projectId = process.env.GOOGLE_CLOUD_PROJECT || "honeytong";
+
     for (const rawChannel of channels) {
       const channel = channelSchema.parse(rawChannel);
-      const ref = this.firestore.collection("channels").doc(channel.youtubeChannelId);
-      batch.set(
-        ref,
-        {
-          ...channel,
-          updatedAt: nowIso(),
+      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/channels/${channel.youtubeChannelId}`;
+      await fetch(url, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
         },
-        { merge: true },
-      );
+        body: JSON.stringify({
+          fields: {
+            youtubeChannelId: { stringValue: channel.youtubeChannelId },
+            celebrityName: { stringValue: channel.celebrityName },
+            channelName: { stringValue: channel.channelName },
+            channelUrl: { stringValue: channel.channelUrl },
+            enabled: { booleanValue: channel.enabled },
+            sourceRow: { integerValue: String(channel.sourceRow) },
+            updatedAt: { stringValue: nowIso() },
+          },
+        }),
+      });
     }
-    await batch.commit();
   }
 
   async listEnabledChannels(): Promise<Channel[]> {
