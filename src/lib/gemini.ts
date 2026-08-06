@@ -210,11 +210,15 @@ export class GeminiVideoAnalyzer {
     const context = [
       basePrompt,
       "",
-      "[승인된 입력]",
-      `연예인 이름: ${input.candidate.celebrityName}`,
-      `제품/아이템: ${input.candidate.product.productName}`,
-      `제품 근거 JSON: ${JSON.stringify(input.candidate.product.evidence)}`,
-      ...input.videoUrls.map((url, index) => `V${index + 1}: ${url}`),
+      "[승인된 입력 데이터]",
+      `## 연예인 이름: ${input.candidate.celebrityName}`,
+      `## 제품/아이템: ${input.candidate.product.productName}`,
+      `## 제품 근거 (타임스탬프 & 발화/장면): ${JSON.stringify(input.candidate.product.evidence)}`,
+      ...input.videoUrls.map((url, index) =>
+        input.videoUrls.length > 1
+          ? `## [V${index + 1}] 유튜브 영상 링크: ${url}`
+          : `## 유튜브 영상 링크: ${url}`,
+      ),
     ].join("\n");
 
     const allowedVideoIds = new Set(input.videoUrls.map(extractYouTubeVideoId));
