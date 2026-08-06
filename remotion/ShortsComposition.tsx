@@ -69,8 +69,8 @@ const HookTitle = ({ value }: { value: string }) => {
     >
       {lines.map((line, index) => {
         const charCount = Math.max(line.length, 1);
-        const autoFitSize = Math.floor(1050 / (charCount * 0.74));
-        const finalSize = Math.max(76, Math.min(140, autoFitSize));
+        const autoFitSize = Math.floor(1050 / (charCount * 0.65));
+        const finalSize = Math.max(96, Math.min(160, autoFitSize));
 
         return (
           <div
