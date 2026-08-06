@@ -97,28 +97,50 @@ const HookTitle = ({ value }: { value: string }) => {
   );
 };
 
-const stripTrailingPeriod = (text: ReactNode): ReactNode => {
-  if (typeof text === "string") {
-    return text.replace(/\.+$|\.\s*$/g, "").trim();
+const formatSubtitleText = (text: ReactNode): ReactNode => {
+  if (typeof text !== "string") return text;
+  const str = text.replace(/\.+$|\.\s*$/g, "").trim();
+  if (str.includes("\n")) return str;
+
+  if (str.length > 14) {
+    const words = str.split(" ");
+    if (words.length > 1) {
+      let currentLength = 0;
+      let splitIndex = 1;
+      const targetMid = str.length / 2;
+      let minDiff = Number.POSITIVE_INFINITY;
+
+      for (let i = 0; i < words.length - 1; i++) {
+        currentLength += words[i]!.length + 1;
+        const diff = Math.abs(currentLength - targetMid);
+        if (diff < minDiff) {
+          minDiff = diff;
+          splitIndex = i + 1;
+        }
+      }
+      return `${words.slice(0, splitIndex).join(" ")}\n${words.slice(splitIndex).join(" ")}`;
+    }
   }
-  return text;
+  return str;
 };
 
 /**
- * Overlay Subtitle: Compact clean White Noto Sans KR (48px) overlayed on video
+ * Overlay Subtitle: Vertically and Horizontally centered clean White Noto Sans KR (52px) overlay
  */
 const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?: CSSProperties }) => (
   <div
     style={{
       position: "absolute",
-      top: 1260,
-      left: 40,
-      right: 40,
+      top: HEADER_HEIGHT,
+      height: VIDEO_HEIGHT,
+      left: 60,
+      right: 60,
       display: "flex",
       justifyContent: "center",
       alignItems: "center",
       zIndex: 30,
       textAlign: "center",
+      pointerEvents: "none",
       ...style,
     }}
   >
@@ -126,18 +148,19 @@ const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?:
       style={{
         color: "#FFFFFF",
         fontFamily: captionFont,
-        fontSize: 48,
+        fontSize: 52,
         fontWeight: 800,
-        lineHeight: 1.3,
+        lineHeight: 1.35,
         letterSpacing: -0.5,
         textAlign: "center",
-        textShadow: "0px 4px 12px rgba(0, 0, 0, 0.98), 0px 2px 5px rgba(0, 0, 0, 0.9)",
-        filter: "drop-shadow(0px 4px 10px rgba(0, 0, 0, 0.95))",
+        textShadow: "0px 4px 14px rgba(0, 0, 0, 0.98), 0px 2px 6px rgba(0, 0, 0, 0.95)",
+        filter: "drop-shadow(0px 4px 12px rgba(0, 0, 0, 0.95))",
         wordBreak: "keep-all",
-        maxWidth: 1000,
+        whiteSpace: "pre-wrap",
+        maxWidth: 820,
       }}
     >
-      {stripTrailingPeriod(children)}
+      {formatSubtitleText(children)}
     </div>
   </div>
 );
