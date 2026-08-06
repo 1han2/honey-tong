@@ -6,15 +6,12 @@ on:
       video_id:
         description: "YouTube video ID"
         required: true
-        type: string
       candidate_id:
         description: "Candidate document ID"
         required: true
-        type: string
       gcs_bucket:
         description: "GCS bucket name for upload"
         required: true
-        type: string
   repository_dispatch:
     types: [download-video]
 
