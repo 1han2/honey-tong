@@ -5,7 +5,7 @@ import { logger } from "../lib/logger.js";
 import { probeRemoteDurationMs } from "../lib/media.js";
 import { GcsMediaStore } from "../lib/storage.js";
 import { TelegramClient } from "../lib/telegram.js";
-import { CloudTtsClient } from "../lib/tts.js";
+import { SmartTtsClient } from "../lib/tts.js";
 import { renderShorts } from "../../remotion/render.js";
 import { renderCandidate } from "../services/media-production-service.js";
 import { prepareProduction } from "../services/produce-service.js";
@@ -33,7 +33,7 @@ if (result.status === "READY_FOR_MEDIA") {
       repository,
       mediaStore: new GcsMediaStore(config),
       probeDuration: probeRemoteDurationMs,
-      tts: new CloudTtsClient(config),
+      tts: new SmartTtsClient(config),
       renderer: renderShorts,
       notifier: telegram,
       maxTempBytes: config.MAX_TEMP_BYTES,

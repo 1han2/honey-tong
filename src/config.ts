@@ -47,6 +47,8 @@ const envSchema = z.object({
   YOUTUBE_PROXY: optionalTrimmedString,
   GITHUB_TOKEN: optionalTrimmedString,
   GITHUB_REPO: optionalTrimmedString,
+  SUPERTONE_API_KEY: optionalTrimmedString,
+  SUPERTONE_VOICE_ID: optionalTrimmedString,
 
   SIGNED_URL_HOURS: z.coerce.number().int().min(1).max(168).default(168),
   MAX_TEMP_BYTES: z.coerce.number().int().positive().default(3 * 1024 * 1024 * 1024),

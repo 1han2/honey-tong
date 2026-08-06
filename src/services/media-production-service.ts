@@ -114,9 +114,36 @@ export const renderCandidate = async (
           contentType: "audio/mpeg",
         });
         ttsAssets.push({ segmentIndex: index, uri, durationMs });
+
+        // Extract continuous background video clip for narration segment
+        let anchorVideoId = candidate.videoId;
+        let anchorStartMs = candidate.product.evidence[0]?.startMs ?? 0;
+
+        const nextSegment = scriptPlan.segments[index + 1];
+        const prevSegment = scriptPlan.segments[index - 1];
+        if (nextSegment?.type === "source_clip") {
+          anchorVideoId = nextSegment.videoId;
+          anchorStartMs = Math.max(0, nextSegment.sourceStartMs - durationMs);
+        } else if (prevSegment?.type === "source_clip") {
+          anchorVideoId = prevSegment.videoId;
+          anchorStartMs = prevSegment.sourceEndMs;
+        }
+
+        const bgFileName = `narration-bg-${String(index).padStart(2, "0")}.mp4`;
+        const bgSourceUrl = signedSourceUrls.get(anchorVideoId);
+        if (bgSourceUrl) {
+          await extractSourceClip({
+            sourceUrl: bgSourceUrl,
+            startMs: anchorStartMs,
+            endMs: anchorStartMs + durationMs,
+            outputPath: workspace.assetPath(bgFileName),
+          });
+        }
+
         renderSegments.push({
           type: "narration",
           fileName,
+          videoFileName: bgSourceUrl ? bgFileName : undefined,
           durationMs,
           text: segment.text,
         });
