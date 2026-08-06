@@ -36,7 +36,25 @@ jobs:
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
           if [ -n "$YOUTUBE_PROXY" ]; then
-            PROXY_URL=$(echo "$YOUTUBE_PROXY" | grep -v '^#' | grep -v '^$' | head -n 1 | tr -d '\r')
+            PROXY_URL=$(python3 -c "
+import sys, re
+raw = '''$YOUTUBE_PROXY'''.strip()
+lines = [l.strip() for l in raw.splitlines() if l.strip() and not l.strip().startswith('#')]
+if lines:
+    line = lines[0]
+    if re.match(r'^(https?|socks5|socks4)://', line, re.I):
+        print(line)
+    else:
+        parts = line.split(':')
+        if len(parts) == 4:
+            if '.' in parts[0]:
+                ip, port, user, pwd = parts
+            else:
+                user, pwd, ip, port = parts
+            print(f'http://{user}:{pwd}@{ip}:{port}')
+        else:
+            print(line)
+")
             echo "YOUTUBE_PROXY_SINGLE=$PROXY_URL" >> $GITHUB_ENV
             echo "🌐 Using YOUTUBE_PROXY secret"
           elif [ -n "$YOUTUBE_COOKIES" ]; then
