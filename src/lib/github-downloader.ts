@@ -5,6 +5,7 @@ import { logger } from "./logger.js";
 
 const POLL_INTERVAL_MS = 5_000;
 const MAX_WAIT_MS = 8 * 60 * 1_000; // 8 minutes (workflow timeout is 10 min)
+const WORKFLOW_FILE = "download.yml";
 
 /**
  * Triggers the GitHub Actions "download-video" repository_dispatch workflow and waits
