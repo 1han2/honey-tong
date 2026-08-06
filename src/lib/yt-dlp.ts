@@ -28,8 +28,7 @@ export const parseProxyList = (rawProxyStr?: string): string[] => {
 };
 
 /**
- * Downloads a YouTube video directly to local disk using yt-dlp via proxy/cookies.
- * Downloading directly with yt-dlp ensures the CDN video chunks are requested through the same proxy IP.
+ * Downloads a YouTube video directly to local disk using yt-dlp via proxy/cookies with automatic fallback.
  */
 export const downloadDirectVideo = async (
   watchUrl: string,
@@ -57,18 +56,16 @@ export const downloadDirectVideo = async (
 
   // 1. Try proxies in order (failover)
   if (proxies.length > 0) {
-    let lastError: unknown;
     for (const [index, proxy] of proxies.entries()) {
       try {
         logger.info({ watchUrl, proxyIndex: index + 1, totalProxies: proxies.length }, "attempting yt-dlp direct video download via proxy");
         await attemptDownload(["--proxy", proxy]);
         return;
       } catch (err) {
-        lastError = err;
         logger.warn({ watchUrl, proxyIndex: index + 1, error: String(err) }, "proxy video download failed, trying next proxy");
       }
     }
-    throw new Error(`All ${proxies.length} proxies failed for ${watchUrl}: ${String(lastError)}`);
+    logger.warn({ watchUrl }, "all proxies failed for yt-dlp download, falling back to client extractor");
   }
 
   // 2. Fallback to cookies or android client
@@ -76,13 +73,11 @@ export const downloadDirectVideo = async (
     return attemptDownload(["--cookies", "/tmp/cookies.txt"]);
   }
 
-  return attemptDownload(["--extractor-args", "youtube:player_client=android"]);
+  return attemptDownload(["--extractor-args", "youtube:player_client=android,web"]);
 };
 
 /**
  * Resolves a YouTube watch URL to a direct video stream URL using yt-dlp.
- * Returns the best single-file MP4 stream URL that FFmpeg can consume.
- * Supports multi-proxy failover rotation.
  */
 export const resolveDirectVideoUrl = async (
   watchUrl: string,
@@ -129,25 +124,22 @@ export const resolveDirectVideoUrl = async (
 
   // 1. If proxies are configured, try proxies in order (failover)
   if (proxies.length > 0) {
-    let lastError: unknown;
     for (const [index, proxy] of proxies.entries()) {
       try {
         logger.info({ watchUrl, proxyIndex: index + 1, totalProxies: proxies.length }, "attempting yt-dlp resolution via proxy");
         return await attemptResolution(["--proxy", proxy]);
       } catch (err) {
-        lastError = err;
         logger.warn({ watchUrl, proxyIndex: index + 1, error: String(err) }, "proxy resolution failed, trying next proxy");
       }
     }
-    throw new Error(`All ${proxies.length} proxies failed for ${watchUrl}: ${String(lastError)}`);
   }
 
-  // 2. Fallback to cookies or android client if no proxies configured
+  // 2. Fallback to cookies or android client if no proxies configured or all proxies failed
   if (cookiesExists) {
     return attemptResolution(["--cookies", "/tmp/cookies.txt"]);
   }
 
-  return attemptResolution(["--extractor-args", "youtube:player_client=android"]);
+  return attemptResolution(["--extractor-args", "youtube:player_client=android,web"]);
 };
 
 const YOUTUBE_HOST_PATTERN = /^(?:www\.)?(?:youtube\.com|youtu\.be)$/i;

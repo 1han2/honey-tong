@@ -46,19 +46,23 @@ export class GcsMediaStore {
     sourceUrl: string;
   }): Promise<string> {
     if (isYouTubeWatchUrl(input.sourceUrl)) {
-      // 1. If YOUTUBE_PROXY is set, download directly to disk via yt-dlp through proxy (avoids CDN IP 403)
+      // 1. If YOUTUBE_PROXY is set, try downloading directly to disk via yt-dlp through proxy
       if (this.config.YOUTUBE_PROXY) {
-        logger.info({ videoId: input.videoId }, "downloading YouTube video via yt-dlp with YOUTUBE_PROXY");
-        const tempPath = `/tmp/youtube_${input.videoId}.mp4`;
-        await downloadDirectVideo(input.sourceUrl, tempPath);
-        const objectName = `source/${input.candidateId}/${input.videoId}.mp4`;
-        const gcsUri = await this.uploadLocalFile({
-          localPath: tempPath,
-          objectName,
-          contentType: "video/mp4",
-        });
-        await fs.promises.unlink(tempPath).catch(() => {});
-        return gcsUri;
+        try {
+          logger.info({ videoId: input.videoId }, "downloading YouTube video via yt-dlp with YOUTUBE_PROXY");
+          const tempPath = `/tmp/youtube_${input.videoId}.mp4`;
+          await downloadDirectVideo(input.sourceUrl, tempPath);
+          const objectName = `source/${input.candidateId}/${input.videoId}.mp4`;
+          const gcsUri = await this.uploadLocalFile({
+            localPath: tempPath,
+            objectName,
+            contentType: "video/mp4",
+          });
+          await fs.promises.unlink(tempPath).catch(() => {});
+          return gcsUri;
+        } catch (proxyError) {
+          logger.warn({ videoId: input.videoId, error: String(proxyError) }, "YOUTUBE_PROXY download failed, attempting fallback methods");
+        }
       }
 
       // 2. Otherwise if GitHub Actions integration is configured, delegate to GitHub Actions
@@ -97,25 +101,20 @@ export class GcsMediaStore {
       return `gs://${this.bucketName}/${objectName}`;
     }
 
-    // Non-YouTube URLs → direct download as before
+    // Non-YouTube URLs → direct download
     const response = await fetch(input.sourceUrl, {
-      headers: { "user-agent": "celebrity-affiliate-shorts/0.1" },
-      redirect: "follow",
       signal: AbortSignal.timeout(10 * 60 * 1_000),
     });
     if (!response.ok || !response.body) {
       throw new Error(`Source download failed: ${response.status}`);
     }
-    const contentType = response.headers.get("content-type") ?? "video/mp4";
-    if (!contentType.startsWith("video/") && !contentType.startsWith("application/octet-stream")) {
-      throw new Error(`Source URL did not return video content: ${contentType}`);
-    }
+    const contentType = response.headers.get("content-type");
     const extension = contentTypeExtension(contentType);
     const objectName = `source/${input.candidateId}/${input.videoId}.${extension}`;
     const file = this.storage.bucket(this.bucketName).file(objectName);
     const destination = file.createWriteStream({
       resumable: true,
-      metadata: { contentType },
+      metadata: contentType ? { contentType } : {},
     });
     await pipeline(
       Readable.from(response.body as unknown as AsyncIterable<Uint8Array>),
@@ -124,43 +123,56 @@ export class GcsMediaStore {
     return `gs://${this.bucketName}/${objectName}`;
   }
 
-
   async uploadLocalFile(input: {
     localPath: string;
     objectName: string;
-    contentType: string;
+    contentType?: string;
   }): Promise<string> {
-    await pipeline(
-      fs.createReadStream(input.localPath),
-      this.storage.bucket(this.bucketName).file(input.objectName).createWriteStream({
-        resumable: false,
-        metadata: { contentType: input.contentType },
-      }),
-    );
+    const file = this.storage.bucket(this.bucketName).file(input.objectName);
+    await file.save(await fs.promises.readFile(input.localPath), {
+      metadata: input.contentType ? { contentType: input.contentType } : {},
+      resumable: false,
+    });
     return `gs://${this.bucketName}/${input.objectName}`;
   }
 
-  async signedReadUrl(gcsUri: string, hours = this.signedUrlHours): Promise<string> {
-    const { bucket, objectName } = this.parseUri(gcsUri);
-    const [url] = await this.storage.bucket(bucket).file(objectName).getSignedUrl({
-      version: "v4",
-      action: "read",
-      expires: Date.now() + hours * 60 * 60 * 1_000,
-    });
+  async signedReadUrl(gcsUri: string): Promise<string> {
+    const { bucket, objectName } = parseGcsUri(gcsUri);
+    const [url] = await this.storage
+      .bucket(bucket)
+      .file(objectName)
+      .getSignedUrl({
+        version: "v4",
+        action: "read",
+        expires: Date.now() + this.signedUrlHours * 60 * 60 * 1_000,
+      });
     return url;
   }
 
-  async deleteCandidateTemporaryObjects(candidateId: string): Promise<void> {
-    const bucket = this.storage.bucket(this.bucketName);
-    await Promise.all([
-      bucket.deleteFiles({ prefix: `source/${candidateId}/`, force: true }),
-      bucket.deleteFiles({ prefix: `tts/${candidateId}/`, force: true }),
-    ]);
+  async isSourceAssetUploaded(candidateId: string, videoId: string): Promise<boolean> {
+    const prefix = `source/${candidateId}/${videoId}.`;
+    const [files] = await this.storage.bucket(this.bucketName).getFiles({ prefix });
+    return files.length > 0;
   }
 
-  private parseUri(uri: string): { bucket: string; objectName: string } {
-    const match = /^gs:\/\/([^/]+)\/(.+)$/.exec(uri);
-    if (!match?.[1] || !match[2]) throw new Error(`Invalid GCS URI: ${uri}`);
-    return { bucket: match[1], objectName: match[2] };
+  async deleteCandidateTemporaryObjects(candidateId: string): Promise<void> {
+    const sourcePrefix = `source/${candidateId}/`;
+    const [files] = await this.storage.bucket(this.bucketName).getFiles({ prefix: sourcePrefix });
+    await Promise.all(files.map((file) => file.delete().catch(() => {})));
   }
+}
+
+export function parseGcsUri(gcsUri: string): { bucket: string; objectName: string } {
+  if (!gcsUri.startsWith("gs://")) {
+    throw new Error(`Invalid GCS URI: ${gcsUri}`);
+  }
+  const slice = gcsUri.slice("gs://".length);
+  const slashIndex = slice.indexOf("/");
+  if (slashIndex === -1) {
+    throw new Error(`Invalid GCS URI: ${gcsUri}`);
+  }
+  return {
+    bucket: slice.slice(0, slashIndex),
+    objectName: slice.slice(slashIndex + 1),
+  };
 }
