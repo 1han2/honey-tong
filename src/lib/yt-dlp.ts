@@ -28,6 +28,57 @@ export const parseProxyList = (rawProxyStr?: string): string[] => {
 };
 
 /**
+ * Downloads a YouTube video directly to local disk using yt-dlp via proxy/cookies.
+ * Downloading directly with yt-dlp ensures the CDN video chunks are requested through the same proxy IP.
+ */
+export const downloadDirectVideo = async (
+  watchUrl: string,
+  outputPath: string,
+): Promise<void> => {
+  const config = loadConfig();
+  const proxies = parseProxyList(config.YOUTUBE_PROXY);
+  const cookiesExists = await fs.access("/tmp/cookies.txt").then(() => true).catch(() => false);
+
+  const attemptDownload = async (extraArgs: string[]): Promise<void> => {
+    const commonArgs = [
+      "--no-playlist",
+      "--no-warnings",
+      ...extraArgs,
+    ];
+
+    await runCommand("yt-dlp", [
+      ...commonArgs,
+      "-f", "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b",
+      "-o", outputPath,
+      watchUrl,
+    ]);
+  };
+
+  // 1. Try proxies in order (failover)
+  if (proxies.length > 0) {
+    let lastError: unknown;
+    for (const [index, proxy] of proxies.entries()) {
+      try {
+        logger.info({ watchUrl, proxyIndex: index + 1, totalProxies: proxies.length }, "attempting yt-dlp direct video download via proxy");
+        await attemptDownload(["--proxy", proxy]);
+        return;
+      } catch (err) {
+        lastError = err;
+        logger.warn({ watchUrl, proxyIndex: index + 1, error: String(err) }, "proxy video download failed, trying next proxy");
+      }
+    }
+    throw new Error(`All ${proxies.length} proxies failed for ${watchUrl}: ${String(lastError)}`);
+  }
+
+  // 2. Fallback to cookies or android client
+  if (cookiesExists) {
+    return attemptDownload(["--cookies", "/tmp/cookies.txt"]);
+  }
+
+  return attemptDownload(["--extractor-args", "youtube:player_client=android"]);
+};
+
+/**
  * Resolves a YouTube watch URL to a direct video stream URL using yt-dlp.
  * Returns the best single-file MP4 stream URL that FFmpeg can consume.
  * Supports multi-proxy failover rotation.

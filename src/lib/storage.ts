@@ -4,7 +4,7 @@ import { pipeline } from "node:stream/promises";
 import { Storage } from "@google-cloud/storage";
 import type { AppConfig } from "../config.js";
 import { requireConfig } from "../config.js";
-import { isYouTubeWatchUrl, resolveDirectVideoUrl } from "./yt-dlp.js";
+import { isYouTubeWatchUrl, resolveDirectVideoUrl, downloadDirectVideo } from "./yt-dlp.js";
 import { downloadViaGitHub } from "./github-downloader.js";
 import { logger } from "./logger.js";
 
@@ -46,31 +46,19 @@ export class GcsMediaStore {
     sourceUrl: string;
   }): Promise<string> {
     if (isYouTubeWatchUrl(input.sourceUrl)) {
-      // 1. If YOUTUBE_PROXY is set, resolve directly in Cloud Run via proxy (fastest)
+      // 1. If YOUTUBE_PROXY is set, download directly to disk via yt-dlp through proxy (avoids CDN IP 403)
       if (this.config.YOUTUBE_PROXY) {
-        logger.info({ videoId: input.videoId }, "resolving YouTube URL directly via yt-dlp with YOUTUBE_PROXY");
-        const downloadUrl = await resolveDirectVideoUrl(input.sourceUrl);
-        const response = await fetch(downloadUrl, {
-          headers: { "user-agent": "celebrity-affiliate-shorts/0.1" },
-          redirect: "follow",
-          signal: AbortSignal.timeout(10 * 60 * 1_000),
+        logger.info({ videoId: input.videoId }, "downloading YouTube video via yt-dlp with YOUTUBE_PROXY");
+        const tempPath = `/tmp/youtube_${input.videoId}.mp4`;
+        await downloadDirectVideo(input.sourceUrl, tempPath);
+        const objectName = `source/${input.candidateId}/${input.videoId}.mp4`;
+        const gcsUri = await this.uploadLocalFile({
+          localPath: tempPath,
+          objectName,
+          contentType: "video/mp4",
         });
-        if (!response.ok || !response.body) {
-          throw new Error(`Source download failed: ${response.status}`);
-        }
-        const contentType = response.headers.get("content-type") ?? "video/mp4";
-        const extension = contentTypeExtension(contentType);
-        const objectName = `source/${input.candidateId}/${input.videoId}.${extension}`;
-        const file = this.storage.bucket(this.bucketName).file(objectName);
-        const destination = file.createWriteStream({
-          resumable: true,
-          metadata: { contentType },
-        });
-        await pipeline(
-          Readable.from(response.body as unknown as AsyncIterable<Uint8Array>),
-          destination,
-        );
-        return `gs://${this.bucketName}/${objectName}`;
+        await fs.promises.unlink(tempPath).catch(() => {});
+        return gcsUri;
       }
 
       // 2. Otherwise if GitHub Actions integration is configured, delegate to GitHub Actions
@@ -83,7 +71,7 @@ export class GcsMediaStore {
         });
       }
 
-      // 3. Fallback to direct resolution
+      // 3. Fallback to direct resolution & fetch
       logger.info({ videoId: input.videoId }, "resolving YouTube URL via yt-dlp fallback");
       const downloadUrl = await resolveDirectVideoUrl(input.sourceUrl);
       const response = await fetch(downloadUrl, {
