@@ -8,7 +8,7 @@ export type RenderSourceSegment = {
 export type RenderNarrationSegment = {
   type: "narration";
   fileName: string;
-  videoFileName?: string;
+  videoFileName?: string | undefined;
   durationMs: number;
   text: string;
 };
