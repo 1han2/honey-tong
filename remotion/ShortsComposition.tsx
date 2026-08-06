@@ -7,8 +7,8 @@ import {
   staticFile,
   useVideoConfig,
 } from "remotion";
-import type { ShortsRenderProps } from "./types";
-import { framesForDuration } from "./types";
+import type { ShortsRenderProps } from "./types.js";
+import { framesForDuration } from "./types.js";
 
 const WIDTH = 1_080;
 const HEIGHT = 1_920;

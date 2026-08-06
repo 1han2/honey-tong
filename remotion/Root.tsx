@@ -1,7 +1,7 @@
 import { Composition } from "remotion";
-import { ShortsComposition } from "./ShortsComposition";
-import type { ShortsRenderProps } from "./types";
-import { totalFrames } from "./types";
+import { ShortsComposition } from "./ShortsComposition.js";
+import type { ShortsRenderProps } from "./types.js";
+import { totalFrames } from "./types.js";
 
 const defaultProps: ShortsRenderProps = {
   title: "Shorts",
