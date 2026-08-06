@@ -144,4 +144,43 @@ describe("Telegram webhook", () => {
       expect.stringContaining("수동 영상 제작 시작"),
     );
   });
+
+  it("parses celebrity name when provided on a separate line in manual video creation", async () => {
+    const repository = {
+      approveCandidate: vi.fn(),
+      queueRerender: vi.fn(),
+      completeCandidate: vi.fn(),
+      updateCandidate: vi.fn(),
+      createManualCandidate: vi.fn().mockResolvedValue({ candidateId: "manual-c2" }),
+    };
+    const jobClient = { startProduce: vi.fn().mockResolvedValue(undefined) };
+    const telegram = {
+      answerCallbackQuery: vi.fn(),
+      clearInlineKeyboard: vi.fn(),
+      sendStatus: vi.fn().mockResolvedValue(101),
+    };
+
+    await handleTelegramUpdate(
+      {
+        update_id: 11,
+        message: {
+          message_id: 51,
+          chat: { id: 1234 },
+          text: "https://www.youtube.com/watch?v=xyz98765\n이국주\n나이키 신발",
+        },
+      },
+      { repository, jobClient, telegram, config },
+    );
+
+    expect(repository.createManualCandidate).toHaveBeenCalledWith({
+      videoId: "xyz98765",
+      videoUrl: "https://www.youtube.com/watch?v=xyz98765",
+      celebrityName: "이국주",
+      productName: "나이키 신발",
+    });
+    expect(jobClient.startProduce).toHaveBeenCalledWith("manual-c2");
+    expect(telegram.sendStatus).toHaveBeenCalledWith(
+      expect.stringContaining("이국주"),
+    );
+  });
 });

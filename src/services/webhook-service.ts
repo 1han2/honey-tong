@@ -37,7 +37,7 @@ export type WebhookRepository = {
   queueRerender(candidateId: string): Promise<"APPROVED" | "NOT_ALLOWED" | "NOT_FOUND">;
   completeCandidate(candidateId: string): Promise<"COMPLETED" | "NOT_ALLOWED" | "NOT_FOUND">;
   updateCandidate(candidateId: string, patch: { status?: "FAILED"; lastStep?: string; lastError?: string }): Promise<void>;
-  createManualCandidate?(input: { videoId: string; videoUrl: string; productName: string }): Promise<any>;
+  createManualCandidate?(input: { videoId: string; videoUrl: string; productName: string; celebrityName?: string }): Promise<any>;
   getCandidate?(candidateId: string): Promise<any | null>;
   getVideo?(videoId: string): Promise<any | null>;
 };
@@ -55,7 +55,7 @@ export type WebhookDependencies = {
 
 export const parseManualInput = (
   text: string,
-): { videoId: string; videoUrl: string; productName: string } | null => {
+): { videoId: string; videoUrl: string; productName: string; celebrityName?: string } | null => {
   const urlMatch = /(https?:\/\/(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/)[A-Za-z0-9_-]{6,20}[^\s]*)/i.exec(text);
   if (!urlMatch || !urlMatch[1]) return null;
 
@@ -71,14 +71,29 @@ export const parseManualInput = (
     return null;
   }
 
-  let remaining = text.replace(rawUrl, "").replace(/^\/(?:make|create)\b/i, "").trim();
-  remaining = remaining.replace(/\r?\n+/g, " ").trim();
+  const remaining = text.replace(rawUrl, "").replace(/^\/(?:make|create)\b/i, "").trim();
   if (!remaining) return null;
+
+  const lines = remaining
+    .split(/\r?\n/)
+    .map((l) => l.trim())
+    .filter(Boolean);
+
+  let celebrityName: string | undefined;
+  let productName: string;
+
+  if (lines.length >= 2) {
+    celebrityName = lines[0];
+    productName = lines.slice(1).join(" ");
+  } else {
+    productName = remaining.replace(/\r?\n+/g, " ").trim();
+  }
 
   return {
     videoId,
     videoUrl: `https://www.youtube.com/watch?v=${videoId}`,
-    productName: remaining,
+    productName,
+    ...(celebrityName ? { celebrityName } : {}),
   };
 };
 
@@ -127,7 +142,7 @@ export const handleTelegramUpdate = async (
     if (!parsed) {
       if (dependencies.telegram.sendStatus) {
         await dependencies.telegram.sendStatus(
-          `💡 <b>수동 영상 제작 요청 방법</b>\n\n유튜브 링크와 제품명을 함께 보내주시면 쇼츠 영상을 바로 제작합니다.\n\n<b>예시:</b>\nhttps://www.youtube.com/watch?v=...\n나이키 에어맥스`,
+          `💡 <b>수동 영상 제작 요청 방법</b>\n\n유튜브 링크와 연예인 이름, 제품명을 보내주시면 쇼츠 영상을 제작합니다.\n\n<b>예시:</b>\nhttps://www.youtube.com/watch?v=...\n이국주\n나이키 신발`,
         );
       }
       return;
@@ -144,8 +159,9 @@ export const handleTelegramUpdate = async (
       const candidate = await dependencies.repository.createManualCandidate(parsed);
       await dependencies.jobClient.startProduce(candidate.candidateId);
       if (dependencies.telegram.sendStatus) {
+        let celebLine = parsed.celebrityName ? `\n• <b>연예인</b>: ${escapeHtml(parsed.celebrityName)}` : "";
         await dependencies.telegram.sendStatus(
-          `🚀 <b>수동 영상 제작 시작</b>\n\n• <b>제품</b>: ${escapeHtml(parsed.productName)}\n• <b>영상</b>: ${escapeHtml(parsed.videoUrl)}\n\nShorts 대본 생성, TTS 및 Remotion 렌더링 작업을 시작합니다!`,
+          `🚀 <b>수동 영상 제작 시작</b>${celebLine}\n• <b>제품</b>: ${escapeHtml(parsed.productName)}\n• <b>영상</b>: ${escapeHtml(parsed.videoUrl)}\n\nShorts 대본 생성, TTS 및 Remotion 렌더링 작업을 시작합니다!`,
         );
       }
     } catch (error) {

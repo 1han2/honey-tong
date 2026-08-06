@@ -145,6 +145,7 @@ export class ShortsRepository {
     videoId: string;
     videoUrl: string;
     productName: string;
+    celebrityName?: string;
   }): Promise<Candidate> {
     const timestamp = nowIso();
     const candidateId = `${input.videoId}_manual_${Date.now().toString(36)}`;
@@ -152,8 +153,8 @@ export class ShortsRepository {
 
     const videoRef = this.firestore.collection("videos").doc(input.videoId);
     const videoSnapshot = await videoRef.get();
-    let celebrityName = "출연자";
-    if (videoSnapshot.exists) {
+    let celebrityName = input.celebrityName || "출연자";
+    if (!input.celebrityName && videoSnapshot.exists) {
       const videoData = videoSnapshot.data();
       if (videoData?.channelId) {
         const channelSnapshot = await this.firestore.collection("channels").doc(videoData.channelId).get();
