@@ -148,16 +148,16 @@ const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?:
       style={{
         color: "#FFFFFF",
         fontFamily: captionFont,
-        fontSize: 52,
+        fontSize: 70,
         fontWeight: 800,
-        lineHeight: 1.35,
+        lineHeight: 1.3,
         letterSpacing: -0.5,
         textAlign: "center",
         textShadow: "0px 4px 14px rgba(0, 0, 0, 0.98), 0px 2px 6px rgba(0, 0, 0, 0.95)",
         filter: "drop-shadow(0px 4px 12px rgba(0, 0, 0, 0.95))",
         wordBreak: "keep-all",
         whiteSpace: "pre-wrap",
-        maxWidth: 820,
+        maxWidth: 960,
       }}
     >
       {formatSubtitleText(children)}
