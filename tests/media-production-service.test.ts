@@ -77,7 +77,7 @@ describe("renderCandidate", () => {
     expect(deleteTemporary).toHaveBeenCalledWith(candidate.candidateId);
     expect(repository.updateCandidate).toHaveBeenCalledWith(
       candidate.candidateId,
-      expect.objectContaining({ status: "REVIEW_READY" }),
+      expect.objectContaining({ status: "COMPLETED" }),
     );
   });
 });

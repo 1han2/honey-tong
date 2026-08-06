@@ -197,7 +197,7 @@ export const renderCandidate = async (
     });
     const outputDeleteAfter = new Date(Date.now() + 14 * 24 * 60 * 60 * 1_000).toISOString();
     await dependencies.repository.updateCandidate(candidate.candidateId, {
-      status: "REVIEW_READY",
+      status: "COMPLETED",
       outputUri,
       outputSizeBytes,
       outputDeleteAfter,
