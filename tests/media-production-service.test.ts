@@ -68,7 +68,7 @@ describe("renderCandidate", () => {
           sendReview: vi.fn().mockResolvedValue(88),
           sendFailure: vi.fn().mockResolvedValue(89),
         },
-        maxTempBytes: 1024 * 1024,
+        maxTempBytes: 50 * 1024 * 1024,
       },
     );
 

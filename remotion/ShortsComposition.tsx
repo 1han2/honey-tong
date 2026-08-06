@@ -26,14 +26,14 @@ const FontStyles = () => (
     {`
       @font-face {
         font-family: 'Jua';
-        src: url('${staticFile("fonts/Jua-Regular.ttf")}') format('truetype');
+        src: local('Jua'), local('Jua-Regular'), url('${staticFile("fonts/Jua-Regular.ttf")}') format('truetype');
         font-weight: normal;
         font-style: normal;
         font-display: block;
       }
       @font-face {
         font-family: 'Noto Sans KR';
-        src: url('${staticFile("fonts/NotoSansKR-Bold.ttf")}') format('truetype');
+        src: local('Noto Sans KR'), local('NotoSansKR-Bold'), url('${staticFile("fonts/NotoSansKR-Bold.ttf")}') format('truetype');
         font-weight: 800;
         font-style: normal;
         font-display: block;

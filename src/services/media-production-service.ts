@@ -1,9 +1,10 @@
 import fs from "node:fs/promises";
+import path from "node:path";
 import type { ShortsRenderProps } from "../../remotion/types.js";
 import type { Candidate, ScriptPlan, TtsAsset } from "../lib/schemas.js";
 import { errorMessage } from "../lib/errors.js";
 import { extractSourceClip } from "../lib/media.js";
-import { logger } from "../lib/logger.js";
+import { logger } from "./../lib/logger.js";
 import { TempWorkspace } from "../lib/temp-workspace.js";
 
 export type MediaRepository = {
@@ -64,6 +65,9 @@ export const renderCandidate = async (
 ): Promise<{ outputUri: string; outputSizeBytes: number; reviewMessageId: number }> => {
   const { candidate, scriptPlan } = input;
   const workspace = await TempWorkspace.create(dependencies.maxTempBytes);
+  const fontsSrc = path.resolve("remotion/public/fonts");
+  const fontsDst = path.join(workspace.publicDir, "fonts");
+  await fs.cp(fontsSrc, fontsDst, { recursive: true }).catch(() => {});
 
   try {
     const confirmedSources = candidate.sourceAssets.filter(
