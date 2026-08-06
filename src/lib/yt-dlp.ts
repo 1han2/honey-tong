@@ -68,12 +68,33 @@ export const downloadDirectVideo = async (
     logger.warn({ watchUrl }, "all proxies failed for yt-dlp download, falling back to client extractor");
   }
 
-  // 2. Fallback to cookies or android client
+  const fallbackClientConfigs = [
+    ["--extractor-args", "youtube:player_client=ios,mweb"],
+    ["--extractor-args", "youtube:player_client=tv_embedded,web_creator"],
+    ["--extractor-args", "youtube:player_client=android,web"],
+  ];
+
+  // 2. Fallback to cookies or client extractors
   if (cookiesExists) {
-    return attemptDownload(["--cookies", "/tmp/cookies.txt"]);
+    try {
+      await attemptDownload(["--cookies", "/tmp/cookies.txt"]);
+      return;
+    } catch (err) {
+      logger.warn({ error: String(err) }, "cookies video download failed, trying client extractors");
+    }
   }
 
-  return attemptDownload(["--extractor-args", "youtube:player_client=android,web"]);
+  for (const clientArgs of fallbackClientConfigs) {
+    try {
+      logger.info({ watchUrl, clientArgs }, "attempting yt-dlp direct video download via client extractor fallback");
+      await attemptDownload(clientArgs);
+      return;
+    } catch (err) {
+      logger.warn({ watchUrl, clientArgs, error: String(err) }, "client extractor video download failed, trying next");
+    }
+  }
+
+  throw new Error(`Failed to download video ${watchUrl} with all available proxies and client extractors`);
 };
 
 /**
@@ -134,12 +155,31 @@ export const resolveDirectVideoUrl = async (
     }
   }
 
-  // 2. Fallback to cookies or android client if no proxies configured or all proxies failed
+  const fallbackClientConfigs = [
+    ["--extractor-args", "youtube:player_client=ios,mweb"],
+    ["--extractor-args", "youtube:player_client=tv_embedded,web_creator"],
+    ["--extractor-args", "youtube:player_client=android,web"],
+  ];
+
+  // 2. Fallback to cookies or client extractors if no proxies configured or all proxies failed
   if (cookiesExists) {
-    return attemptResolution(["--cookies", "/tmp/cookies.txt"]);
+    try {
+      return await attemptResolution(["--cookies", "/tmp/cookies.txt"]);
+    } catch (err) {
+      logger.warn({ error: String(err) }, "cookies resolution failed, trying client extractors");
+    }
   }
 
-  return attemptResolution(["--extractor-args", "youtube:player_client=android,web"]);
+  for (const clientArgs of fallbackClientConfigs) {
+    try {
+      logger.info({ watchUrl, clientArgs }, "attempting yt-dlp resolution via client extractor fallback");
+      return await attemptResolution(clientArgs);
+    } catch (err) {
+      logger.warn({ watchUrl, clientArgs, error: String(err) }, "client extractor resolution failed, trying next");
+    }
+  }
+
+  throw new Error(`Failed to resolve video URL ${watchUrl} with all available proxies and client extractors`);
 };
 
 const YOUTUBE_HOST_PATTERN = /^(?:www\.)?(?:youtube\.com|youtu\.be)$/i;
