@@ -4,7 +4,7 @@ import { pipeline } from "node:stream/promises";
 import { Storage } from "@google-cloud/storage";
 import type { AppConfig } from "../config.js";
 import { requireConfig } from "../config.js";
-import { isYouTubeWatchUrl, extractVideoId } from "./yt-dlp.js";
+import { isYouTubeWatchUrl, resolveDirectVideoUrl } from "./yt-dlp.js";
 import { downloadViaGitHub } from "./github-downloader.js";
 import { logger } from "./logger.js";
 
@@ -45,14 +45,68 @@ export class GcsMediaStore {
     videoId: string;
     sourceUrl: string;
   }): Promise<string> {
-    // YouTube URLs → delegate download to GitHub Actions runner (Azure IP, no bot block)
     if (isYouTubeWatchUrl(input.sourceUrl)) {
-      logger.info({ videoId: input.videoId }, "delegating YouTube download to GitHub Actions");
-      return downloadViaGitHub({
-        videoId: input.videoId,
-        candidateId: input.candidateId,
-        config: this.config,
+      // 1. If YOUTUBE_PROXY is set, resolve directly in Cloud Run via proxy (fastest)
+      if (this.config.YOUTUBE_PROXY) {
+        logger.info({ videoId: input.videoId }, "resolving YouTube URL directly via yt-dlp with YOUTUBE_PROXY");
+        const downloadUrl = await resolveDirectVideoUrl(input.sourceUrl);
+        const response = await fetch(downloadUrl, {
+          headers: { "user-agent": "celebrity-affiliate-shorts/0.1" },
+          redirect: "follow",
+          signal: AbortSignal.timeout(10 * 60 * 1_000),
+        });
+        if (!response.ok || !response.body) {
+          throw new Error(`Source download failed: ${response.status}`);
+        }
+        const contentType = response.headers.get("content-type") ?? "video/mp4";
+        const extension = contentTypeExtension(contentType);
+        const objectName = `source/${input.candidateId}/${input.videoId}.${extension}`;
+        const file = this.storage.bucket(this.bucketName).file(objectName);
+        const destination = file.createWriteStream({
+          resumable: true,
+          metadata: { contentType },
+        });
+        await pipeline(
+          Readable.from(response.body as unknown as AsyncIterable<Uint8Array>),
+          destination,
+        );
+        return `gs://${this.bucketName}/${objectName}`;
+      }
+
+      // 2. Otherwise if GitHub Actions integration is configured, delegate to GitHub Actions
+      if (this.config.GITHUB_TOKEN && this.config.GITHUB_REPO) {
+        logger.info({ videoId: input.videoId }, "delegating YouTube download to GitHub Actions");
+        return downloadViaGitHub({
+          videoId: input.videoId,
+          candidateId: input.candidateId,
+          config: this.config,
+        });
+      }
+
+      // 3. Fallback to direct resolution
+      logger.info({ videoId: input.videoId }, "resolving YouTube URL via yt-dlp fallback");
+      const downloadUrl = await resolveDirectVideoUrl(input.sourceUrl);
+      const response = await fetch(downloadUrl, {
+        headers: { "user-agent": "celebrity-affiliate-shorts/0.1" },
+        redirect: "follow",
+        signal: AbortSignal.timeout(10 * 60 * 1_000),
       });
+      if (!response.ok || !response.body) {
+        throw new Error(`Source download failed: ${response.status}`);
+      }
+      const contentType = response.headers.get("content-type") ?? "video/mp4";
+      const extension = contentTypeExtension(contentType);
+      const objectName = `source/${input.candidateId}/${input.videoId}.${extension}`;
+      const file = this.storage.bucket(this.bucketName).file(objectName);
+      const destination = file.createWriteStream({
+        resumable: true,
+        metadata: { contentType },
+      });
+      await pipeline(
+        Readable.from(response.body as unknown as AsyncIterable<Uint8Array>),
+        destination,
+      );
+      return `gs://${this.bucketName}/${objectName}`;
     }
 
     // Non-YouTube URLs → direct download as before
