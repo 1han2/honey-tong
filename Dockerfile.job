@@ -16,6 +16,7 @@ RUN apt-get update \
     ca-certificates \
     chromium \
     curl \
+    ffmpeg \
     fontconfig \
     fonts-noto-cjk \
     fonts-noto-color-emoji \
