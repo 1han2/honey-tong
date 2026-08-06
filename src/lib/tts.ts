@@ -31,7 +31,9 @@ export class SupertoneTtsClient implements TtsSynthesizer {
       body: JSON.stringify({
         text,
         language: "ko",
-        speed: speakingRate,
+        voice_settings: {
+          speed: speakingRate,
+        },
       }),
       signal: AbortSignal.timeout(30_000),
     });
