@@ -11,9 +11,9 @@ import type { ShortsRenderProps } from "./types.js";
 import { framesForDuration } from "./types.js";
 
 const WIDTH = 1_080;
-const HEADER_HEIGHT = 360;
-const SOURCE_SIZE = 1_080;
-const FOOTER_HEIGHT = 1_920 - HEADER_HEIGHT - SOURCE_SIZE; // 480px
+const HEIGHT = 1_920;
+const HEADER_HEIGHT = 320;
+const VIDEO_HEIGHT = 1_280;
 
 const titleFont = "'Black Han Sans', 'Noto Sans KR', sans-serif";
 const captionFont = "'Black Han Sans', 'Noto Sans KR', sans-serif";
@@ -37,7 +37,7 @@ const HookTitle = ({ value }: { value: string }) => {
         flexDirection: "column",
         height: HEADER_HEIGHT,
         justifyContent: "center",
-        padding: "30px 48px 20px",
+        padding: "24px 40px 16px",
         textAlign: "center",
         width: WIDTH,
         position: "absolute",
@@ -52,7 +52,7 @@ const HookTitle = ({ value }: { value: string }) => {
           style={{
             color: index === 0 ? "#F20D18" : "#FFFFFF",
             fontFamily: titleFont,
-            fontSize: lines.length > 1 ? 76 : 84,
+            fontSize: lines.length > 1 ? 72 : 80,
             fontWeight: 900,
             letterSpacing: -1.5,
             lineHeight: 1.15,
@@ -69,20 +69,22 @@ const HookTitle = ({ value }: { value: string }) => {
   );
 };
 
-const Caption = ({ children, style }: { children: ReactNode; style?: CSSProperties }) => (
+/**
+ * Overlay Subtitle: Rendered DIRECTLY ON TOP OF THE VIDEO FRAME (no black box underneath)
+ * Matches reference Shorts Pe5mnWKTCfg & d21zthnRKiQ.
+ */
+const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?: CSSProperties }) => (
   <div
     style={{
-      alignItems: "center",
-      backgroundColor: "#000000",
-      display: "flex",
-      height: FOOTER_HEIGHT,
-      justifyContent: "center",
-      padding: "20px 60px 40px",
       position: "absolute",
-      top: HEADER_HEIGHT + SOURCE_SIZE,
-      left: 0,
-      width: WIDTH,
-      zIndex: 20,
+      top: 1240,
+      left: 40,
+      right: 40,
+      display: "flex",
+      justifyContent: "center",
+      alignItems: "center",
+      zIndex: 30,
+      textAlign: "center",
       ...style,
     }}
   >
@@ -90,26 +92,22 @@ const Caption = ({ children, style }: { children: ReactNode; style?: CSSProperti
       style={{
         color: "#FFFFFF",
         fontFamily: captionFont,
-        fontSize: 68,
+        fontSize: 66,
         fontWeight: 900,
         lineHeight: 1.25,
         letterSpacing: -0.5,
         textAlign: "center",
         paintOrder: "stroke fill",
-        WebkitTextStroke: "4px #000000",
-        textShadow: "0 6px 16px rgba(0, 0, 0, 0.95), 0 2px 5px rgba(0, 0, 0, 0.85)",
+        WebkitTextStroke: "4.5px #000000",
+        textShadow: "0 6px 18px rgba(0, 0, 0, 0.95), 0 2px 6px rgba(0, 0, 0, 0.9)",
         filter: "drop-shadow(0px 6px 14px rgba(0, 0, 0, 0.95))",
         wordBreak: "keep-all",
-        maxWidth: 960,
+        maxWidth: 1000,
       }}
     >
       {children}
     </div>
   </div>
-);
-
-const SceneFrame = ({ children }: { children: ReactNode }) => (
-  <AbsoluteFill style={{ backgroundColor: "#000000" }}>{children}</AbsoluteFill>
 );
 
 export const ShortsComposition = (props: ShortsRenderProps) => {
@@ -128,12 +126,12 @@ export const ShortsComposition = (props: ShortsRenderProps) => {
         if (segment.type === "source_clip") {
           return (
             <Sequence key={`${index}-${segment.fileName}`} from={sequenceFrom} durationInFrames={durationInFrames}>
-              <SceneFrame>
+              <AbsoluteFill style={{ backgroundColor: "#000000" }}>
                 <HookTitle value={hookTitle} />
                 <OffthreadVideo
                   src={staticFile(segment.fileName)}
                   style={{
-                    height: SOURCE_SIZE,
+                    height: VIDEO_HEIGHT,
                     left: 0,
                     objectFit: "cover",
                     objectPosition: "center",
@@ -142,23 +140,23 @@ export const ShortsComposition = (props: ShortsRenderProps) => {
                     width: WIDTH,
                   }}
                 />
-                <Caption>{segment.subtitle}</Caption>
-              </SceneFrame>
+                <VideoOverlayCaption>{segment.subtitle}</VideoOverlayCaption>
+              </AbsoluteFill>
             </Sequence>
           );
         }
 
-        // Narration segment: Continuous background video with muted audio + Supertone TTS voice
+        // Narration segment: Continuous background video with muted audio + Supertone TTS voice + Overlay Subtitle
         return (
           <Sequence key={`${index}-${segment.fileName}`} from={sequenceFrom} durationInFrames={durationInFrames}>
-            <SceneFrame>
+            <AbsoluteFill style={{ backgroundColor: "#000000" }}>
               <HookTitle value={hookTitle} />
               {segment.videoFileName ? (
                 <OffthreadVideo
                   src={staticFile(segment.videoFileName)}
                   muted={true}
                   style={{
-                    height: SOURCE_SIZE,
+                    height: VIDEO_HEIGHT,
                     left: 0,
                     objectFit: "cover",
                     objectPosition: "center",
@@ -169,8 +167,8 @@ export const ShortsComposition = (props: ShortsRenderProps) => {
                 />
               ) : null}
               <Audio src={staticFile(segment.fileName)} />
-              <Caption>{segment.text}</Caption>
-            </SceneFrame>
+              <VideoOverlayCaption>{segment.text}</VideoOverlayCaption>
+            </AbsoluteFill>
           </Sequence>
         );
       })}
