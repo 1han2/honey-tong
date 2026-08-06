@@ -20,7 +20,8 @@ export class SupertoneTtsClient implements TtsSynthesizer {
     }
 
     const speakingRate = this.config.TTS_SPEAKING_RATE ?? 1.2;
-    logger.info({ voiceId, textLength: text.length, speakingRate }, "synthesizing speech via Supertone AI API");
+    const sanitizedText = text.replace(/[\.\s]+$/, "").trim();
+    logger.info({ voiceId, textLength: sanitizedText.length, speakingRate }, "synthesizing speech via Supertone AI API");
     const url = `https://supertoneapi.com/v1/text-to-speech/${voiceId}`;
     const response = await fetch(url, {
       method: "POST",
@@ -29,7 +30,7 @@ export class SupertoneTtsClient implements TtsSynthesizer {
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        text,
+        text: sanitizedText,
         language: "ko",
         voice_settings: {
           speed: speakingRate,
@@ -55,8 +56,9 @@ export class CloudTtsClient implements TtsSynthesizer {
   constructor(private readonly config: AppConfig) {}
 
   async synthesizeToFile(text: string, outputPath: string): Promise<number> {
+    const sanitizedText = text.replace(/[\.\s]+$/, "").trim();
     const [response] = await this.client.synthesizeSpeech({
-      input: { text },
+      input: { text: sanitizedText },
       voice: {
         languageCode: this.config.TTS_LANGUAGE_CODE,
         ...(this.config.TTS_VOICE_NAME ? { name: this.config.TTS_VOICE_NAME } : {}),
