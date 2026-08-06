@@ -1,23 +1,11 @@
 name: Download YouTube Video
 
 on:
-  repository_dispatch:
-    types: [download-video]
   workflow_dispatch:
-    inputs:
-      video_id:
-        description: "YouTube video ID"
-        required: true
-      candidate_id:
-        description: "Candidate document ID"
-        required: true
-      gcs_bucket:
-        description: "GCS bucket name for upload"
-        required: true
+  repository_dispatch:
 
 jobs:
   download:
-    if: github.event_name == 'repository_dispatch' || github.event_name == 'workflow_dispatch'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
