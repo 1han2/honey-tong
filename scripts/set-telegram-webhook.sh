@@ -8,7 +8,7 @@ set -euo pipefail
 curl --fail-with-body --silent --show-error \
   --request POST "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
   --header "content-type: application/json" \
-  --data "{\"url\":\"${PUBLIC_API_URL}/telegram/webhook\",\"secret_token\":\"${TELEGRAM_WEBHOOK_SECRET}\",\"drop_pending_updates\":true,\"allowed_updates\":[\"callback_query\"]}"
+  --data "{\"url\":\"${PUBLIC_API_URL}/telegram/webhook\",\"secret_token\":\"${TELEGRAM_WEBHOOK_SECRET}\",\"drop_pending_updates\":true,\"allowed_updates\":[\"callback_query\",\"message\"]}"
 
 echo
 echo "Telegram webhook configured."
