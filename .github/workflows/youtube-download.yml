@@ -2,19 +2,8 @@ name: Download YouTube Video
 
 on:
   workflow_dispatch:
-    inputs:
-      video_id:
-        description: "YouTube video ID"
-        required: true
-        type: string
-      candidate_id:
-        description: "Candidate document ID"
-        required: true
-        type: string
-      gcs_bucket:
-        description: "GCS bucket name for upload"
-        required: true
-        type: string
+  repository_dispatch:
+    types: [download-video]
 
 jobs:
   download:
@@ -67,6 +56,16 @@ if lines:
             echo "⚠️ No proxy or cookies set, using android client fallback"
           fi
 
+      - name: Extract Inputs
+        run: |
+          VIDEO_ID="${{ github.event.inputs.video_id || github.event.client_payload.video_id }}"
+          CANDIDATE_ID="${{ github.event.inputs.candidate_id || github.event.client_payload.candidate_id }}"
+          GCS_BUCKET="${{ github.event.inputs.gcs_bucket || github.event.client_payload.gcs_bucket }}"
+          
+          echo "VIDEO_ID=$VIDEO_ID" >> $GITHUB_ENV
+          echo "CANDIDATE_ID=$CANDIDATE_ID" >> $GITHUB_ENV
+          echo "GCS_BUCKET=$GCS_BUCKET" >> $GITHUB_ENV
+
       - name: Download video
         run: |
           FLAGS=()
@@ -85,7 +84,7 @@ if lines:
             --no-warnings \
             --merge-output-format mp4 \
             -o "video.mp4" \
-            "https://www.youtube.com/watch?v=${{ inputs.video_id }}"
+            "https://www.youtube.com/watch?v=${VIDEO_ID}"
 
       - name: Authenticate to Google Cloud
         uses: google-github-actions/auth@v2
@@ -98,5 +97,5 @@ if lines:
       - name: Upload to GCS
         run: |
           gcloud storage cp video.mp4 \
-            "gs://${{ inputs.gcs_bucket }}/source/${{ inputs.candidate_id }}/${{ inputs.video_id }}.mp4"
-          echo "✅ Uploaded to gs://${{ inputs.gcs_bucket }}/source/${{ inputs.candidate_id }}/${{ inputs.video_id }}.mp4"
+            "gs://${GCS_BUCKET}/source/${CANDIDATE_ID}/${VIDEO_ID}.mp4"
+          echo "✅ Uploaded to gs://${GCS_BUCKET}/source/${CANDIDATE_ID}/${VIDEO_ID}.mp4"
