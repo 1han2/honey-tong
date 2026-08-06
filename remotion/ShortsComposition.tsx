@@ -97,6 +97,13 @@ const HookTitle = ({ value }: { value: string }) => {
   );
 };
 
+const stripTrailingPeriod = (text: ReactNode): ReactNode => {
+  if (typeof text === "string") {
+    return text.replace(/\.+$|\.\s*$/g, "").trim();
+  }
+  return text;
+};
+
 /**
  * Overlay Subtitle: Compact clean White Noto Sans KR (48px) overlayed on video
  */
@@ -130,7 +137,7 @@ const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?:
         maxWidth: 1000,
       }}
     >
-      {children}
+      {stripTrailingPeriod(children)}
     </div>
   </div>
 );

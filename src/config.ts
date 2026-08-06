@@ -31,7 +31,7 @@ const envSchema = z.object({
   PUBLIC_API_URL: optionalTrimmedString,
   TTS_LANGUAGE_CODE: z.string().default("ko-KR"),
   TTS_VOICE_NAME: optionalTrimmedString,
-  TTS_SPEAKING_RATE: z.coerce.number().min(0.25).max(4).default(1.05),
+  TTS_SPEAKING_RATE: z.coerce.number().min(0.25).max(4).default(1.2),
   SCAN_MAX_VIDEOS_PER_RUN: z.coerce.number().int().min(1).max(200).default(20),
   SCAN_VIDEO_ID: optionalTrimmedString,
   SCAN_LOOKBACK_HOURS: z.coerce.number().int().min(1).max(24 * 30).default(24),

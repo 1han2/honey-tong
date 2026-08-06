@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import textToSpeech from "@google-cloud/text-to-speech";
 import type { AppConfig } from "../config.js";
+import { runCommand } from "./command.js";
 import { probeDurationMs } from "./media.js";
 import { logger } from "./logger.js";
 
@@ -18,7 +19,8 @@ export class SupertoneTtsClient implements TtsSynthesizer {
       throw new Error("SUPERTONE_API_KEY and SUPERTONE_VOICE_ID must be set in environment");
     }
 
-    logger.info({ voiceId, textLength: text.length }, "synthesizing speech via Supertone AI API");
+    const speakingRate = this.config.TTS_SPEAKING_RATE ?? 1.2;
+    logger.info({ voiceId, textLength: text.length, speakingRate }, "synthesizing speech via Supertone AI API");
     const url = `https://supertoneapi.com/v1/text-to-speech/${voiceId}`;
     const response = await fetch(url, {
       method: "POST",
@@ -39,7 +41,31 @@ export class SupertoneTtsClient implements TtsSynthesizer {
     }
 
     const arrayBuffer = await response.arrayBuffer();
-    await fs.writeFile(outputPath, Buffer.from(arrayBuffer));
+
+    if (speakingRate !== 1.0 && arrayBuffer.byteLength > 256) {
+      const rawPath = `${outputPath}.raw.mp3`;
+      await fs.writeFile(rawPath, Buffer.from(arrayBuffer));
+      try {
+        await runCommand("ffmpeg", [
+          "-hide_banner",
+          "-loglevel",
+          "error",
+          "-i",
+          rawPath,
+          "-filter:a",
+          `atempo=${speakingRate.toFixed(2)}`,
+          "-y",
+          outputPath,
+        ]);
+        await fs.unlink(rawPath).catch(() => {});
+      } catch (err) {
+        logger.warn({ error: String(err) }, "ffmpeg atempo speedup failed, using raw Supertone audio");
+        await fs.rename(rawPath, outputPath).catch(() => fs.writeFile(outputPath, Buffer.from(arrayBuffer)));
+      }
+    } else {
+      await fs.writeFile(outputPath, Buffer.from(arrayBuffer));
+    }
+
     return probeDurationMs(outputPath);
   }
 }
