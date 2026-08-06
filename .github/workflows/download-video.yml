@@ -1,5 +1,6 @@
 name: Download YouTube Video
-"on":
+
+on:
   workflow_dispatch:
     inputs:
       video_id:
