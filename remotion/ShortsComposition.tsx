@@ -15,17 +15,20 @@ const HEIGHT = 1_920;
 const HEADER_HEIGHT = 320;
 const VIDEO_HEIGHT = 1_280;
 
-const titleFont = "'Black Han Sans', 'Noto Sans KR', sans-serif";
-const captionFont = "'Black Han Sans', 'Noto Sans KR', sans-serif";
+const titleFont = "'Noto Sans KR', sans-serif";
+const captionFont = "'Noto Sans KR', sans-serif";
 
 const FontStyles = () => (
   <style>
     {`
-      @import url('https://fonts.googleapis.com/css2?family=Black+Han+Sans&family=Noto+Sans+KR:wght@800;900&display=swap');
+      @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@700;800;900&display=swap');
     `}
   </style>
 );
 
+/**
+ * Top Hook Title: Clean proportional text with soft black drop shadow (NO thick stroke)
+ */
 const HookTitle = ({ value }: { value: string }) => {
   const lines = value.split(/\r?\n/).filter(Boolean).slice(0, 2);
   return (
@@ -50,16 +53,14 @@ const HookTitle = ({ value }: { value: string }) => {
         <div
           key={`${index}-${line}`}
           style={{
-            color: index === 0 ? "#F20D18" : "#FFFFFF",
+            color: index === 0 ? "#FFE500" : "#FFFFFF",
             fontFamily: titleFont,
-            fontSize: lines.length > 1 ? 72 : 80,
+            fontSize: lines.length > 1 ? 58 : 66,
             fontWeight: 900,
-            letterSpacing: -1.5,
-            lineHeight: 1.15,
-            paintOrder: "stroke fill",
-            WebkitTextStroke: "4px #000000",
-            textShadow: "0 6px 14px rgba(0, 0, 0, 0.95), 0 2px 4px rgba(0, 0, 0, 0.8)",
-            filter: "drop-shadow(0px 6px 12px rgba(0, 0, 0, 0.95))",
+            letterSpacing: -1,
+            lineHeight: 1.25,
+            textShadow: "0px 4px 12px rgba(0, 0, 0, 0.95), 0px 2px 4px rgba(0, 0, 0, 0.9)",
+            filter: "drop-shadow(0px 4px 8px rgba(0, 0, 0, 0.95))",
           }}
         >
           {line}
@@ -70,8 +71,8 @@ const HookTitle = ({ value }: { value: string }) => {
 };
 
 /**
- * Overlay Subtitle: Rendered DIRECTLY ON TOP OF THE VIDEO FRAME (no black box underneath)
- * Matches reference Shorts Pe5mnWKTCfg & d21zthnRKiQ.
+ * Overlay Subtitle: Clean White font with soft black drop shadow overlayed on video (NO thick stroke, NO black box)
+ * Matches reference Shorts Pe5mnWKTCfg & d21zthnRKiQ exactly.
  */
 const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?: CSSProperties }) => (
   <div
@@ -92,15 +93,13 @@ const VideoOverlayCaption = ({ children, style }: { children: ReactNode; style?:
       style={{
         color: "#FFFFFF",
         fontFamily: captionFont,
-        fontSize: 66,
-        fontWeight: 900,
-        lineHeight: 1.25,
+        fontSize: 54,
+        fontWeight: 800,
+        lineHeight: 1.3,
         letterSpacing: -0.5,
         textAlign: "center",
-        paintOrder: "stroke fill",
-        WebkitTextStroke: "4.5px #000000",
-        textShadow: "0 6px 18px rgba(0, 0, 0, 0.95), 0 2px 6px rgba(0, 0, 0, 0.9)",
-        filter: "drop-shadow(0px 6px 14px rgba(0, 0, 0, 0.95))",
+        textShadow: "0px 4px 12px rgba(0, 0, 0, 0.98), 0px 2px 5px rgba(0, 0, 0, 0.9)",
+        filter: "drop-shadow(0px 4px 10px rgba(0, 0, 0, 0.95))",
         wordBreak: "keep-all",
         maxWidth: 1000,
       }}
