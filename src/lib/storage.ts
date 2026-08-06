@@ -5,7 +5,6 @@ import { Storage } from "@google-cloud/storage";
 import type { AppConfig } from "../config.js";
 import { requireConfig } from "../config.js";
 import { isYouTubeWatchUrl, resolveDirectVideoUrl, downloadDirectVideo } from "./yt-dlp.js";
-import { downloadViaGitHub } from "./github-downloader.js";
 import { logger } from "./logger.js";
 
 const contentTypeExtension = (contentType: string | null): string => {
@@ -69,21 +68,11 @@ export class GcsMediaStore {
           await fs.promises.unlink(tempPath).catch(() => {});
           return gcsUri;
         } catch (proxyError) {
-          logger.warn({ videoId: input.videoId, error: String(proxyError) }, "YOUTUBE_PROXY download failed, attempting fallback methods");
+          logger.warn({ videoId: input.videoId, error: String(proxyError) }, "YOUTUBE_PROXY download failed, attempting direct resolution fallback");
         }
       }
 
-      // 2. Otherwise if GitHub Actions integration is configured, delegate to GitHub Actions
-      if (this.config.GITHUB_TOKEN && this.config.GITHUB_REPO) {
-        logger.info({ videoId: input.videoId }, "delegating YouTube download to GitHub Actions");
-        return downloadViaGitHub({
-          videoId: input.videoId,
-          candidateId: input.candidateId,
-          config: this.config,
-        });
-      }
-
-      // 3. Fallback to direct resolution & fetch
+      // 2. Fallback to direct resolution & fetch
       logger.info({ videoId: input.videoId }, "resolving YouTube URL via yt-dlp fallback");
       const downloadUrl = await resolveDirectVideoUrl(input.sourceUrl);
       const response = await fetch(downloadUrl, {
