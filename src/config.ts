@@ -44,6 +44,7 @@ const envSchema = z.object({
   MIN_LONG_FORM_SECONDS: z.coerce.number().int().min(1).max(3600).default(60),
   VIDEO_TITLE_EXCLUDE_REGEX: optionalTrimmedString,
 
+  YOUTUBE_PROXY: optionalTrimmedString,
   GITHUB_TOKEN: optionalTrimmedString,
   GITHUB_REPO: optionalTrimmedString,
 
