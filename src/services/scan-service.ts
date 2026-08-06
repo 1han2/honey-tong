@@ -76,12 +76,13 @@ export const constrainProductEvidenceToDuration = (
 ): ProductAnalysis => {
   const products: Product[] = [];
   for (const product of analysis.products) {
-    let evidence = product.evidence.filter(
-      (item) =>
-        item.startMs >= 0 &&
-        (!durationMs || durationMs <= 0 || item.startMs < durationMs) &&
-        (item.endMs === undefined || (item.endMs > item.startMs && item.endMs <= durationMs)),
-    );
+    let evidence = product.evidence.map((item) => {
+      let startMs = Math.max(0, item.startMs);
+      if (durationMs && durationMs > 0 && startMs >= durationMs) {
+        startMs = Math.max(0, durationMs - 1_000);
+      }
+      return { ...item, startMs };
+    });
     if (evidence.length > 1) {
       evidence = evidence.slice(0, 1);
     }

@@ -47,8 +47,7 @@ describe("runScan", () => {
     expect(repository.updateVideoAnalysis).toHaveBeenCalledWith("short2", "SKIPPED");
   });
 
-  it("drops evidence outside the YouTube duration before creating candidates", () => {
-
+  it("clamps evidence outside the YouTube duration to valid duration bounds without dropping products", () => {
     const bounded = constrainProductEvidenceToDuration(
       {
         products: [
@@ -70,8 +69,8 @@ describe("runScan", () => {
       600_000,
     );
 
-    expect(bounded.products).toHaveLength(1);
-    expect(bounded.products[0]?.evidence).toHaveLength(1);
+    expect(bounded.products).toHaveLength(2);
+    expect(bounded.products[1]?.evidence[0]?.startMs).toBe(599_000);
   });
 
   it("drops obvious person names misclassified as generic products", () => {

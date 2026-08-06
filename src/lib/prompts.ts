@@ -47,11 +47,13 @@ export const getProductsPrompt = async (
 ): Promise<string> => {
   const base = await loadPromptFile("get_products.md");
   const idClause = expectedVideoId ? `(${expectedVideoId})` : "";
+  const minutes = videoDurationMs ? Math.floor(videoDurationMs / 60_000) : 0;
+  const seconds = videoDurationMs ? Math.floor((videoDurationMs % 60_000) / 1_000) : 0;
   const durationClause =
     videoDurationMs && videoDurationMs > 0
-      ? `\n- 영상 길이는 ${videoDurationMs}ms (${(videoDurationMs / 1_000).toFixed(1)}초)다. 모든 evidence.startMs는 반드시 0 이상 ${videoDurationMs - 1}ms 이하의 정수이어야 하며, 영상 길이를 절대로 초과할 수 없다.`
+      ? `\n- 영상 전체 길이는 ${minutes}분 ${seconds}초 (${videoDurationMs}ms)다. 모든 evidence.startMs는 반드시 0 이상 ${videoDurationMs - 1}ms 이하의 정수이어야 하며, ${videoDurationMs}ms를 절대로 초과할 수 없다.`
       : "";
-  return `${base}\n\n[API JSON 출력 계약 — 절대 준수]\n- 표나 Markdown을 출력하지 말고 JSON 객체 하나만 출력한다. 최상위 형식은 반드시 {\"products\":[...]}이다.\n- 각 제품 키는 정확히 productName, productNameRaw, brand, category, evidence를 사용한다. snake_case(product_name 등)를 사용하지 않는다.\n- evidence의 각 키는 정확히 videoId, startMs, quote, kind를 사용한다. endMs는 절대 입력하지 않는다.\n- evidence.videoId는 반드시 분석 입력 영상의 YouTube ID${idClause}를 그대로 쓴다. URL, 채널 ID, null을 쓰지 않는다.\n- evidence.startMs는 영상 시작 기준 정수 millisecond다. 실제 영상에서 해당 제품이 등장하거나 관련 언급이 시작하는 시점을 찾아서 정확히 입력한다.\n- 실제 발언이면 kind=\"quote\"이고 quote에는 원문만 쓴다.\n- 발언이 없고 화면으로만 식별했으면 kind=\"scene\"이고 quote는 반드시 \"[장면]\"으로 시작한다.\n- 1개 제품당 evidence는 가장 대표적인 장면 1개만 작성한다.\n- 인물 이름(출연자·게스트), 장소·도시·식당·카페·호텔·리조트·관광지명, 방송 제목·해시태그·감정 표현은 상품이 아니므로 products에 절대 넣지 않는다.\n- 서비스(마사지, 네일, PT, 헤어 등)는 온라인 구매 불가이므로 products에 넣지 않는다.\n- 오프라인 매장에서만 구매 가능한 현장 전용 메뉴·음식은 넣지 않는다.\n- 쿠팡·네이버쇼핑·11번가 등 온라인 쇼핑몰에서 검색·구매 가능한 실물 상품만 넣는다.\n- 출연자가 전혀 언급·설명하지 않고 화면에 스쳐 지나가기만 하는 제품은 넣지 않는다.\n- 확신할 수 없는 상품은 넣지 않는다.${durationClause}`;
+  return `${base}\n\n[API JSON 출력 계약 — 절대 준수]\n- 표나 Markdown을 출력하지 말고 JSON 객체 하나만 출력한다. 최상위 형식은 반드시 {"products":[...]}이다.\n- 각 제품 키는 정확히 productName, productNameRaw, brand, category, evidence를 사용한다. snake_case(product_name 등)를 사용하지 않는다.\n- evidence의 각 키는 정확히 videoId, startMs, quote, kind를 사용한다. endMs는 절대 입력하지 않는다.\n- evidence.videoId는 반드시 분석 입력 영상의 YouTube ID${idClause}를 그대로 쓴다. URL, 채널 ID, null을 쓰지 않는다.\n- evidence.startMs 산식: (분 × 60 + 초) × 1000. 예: 2분 10초 ➔ 130,000ms. (⚠️ 2분 10초를 210,000ms로 잘못 쓰지 마라!)\n- 실제 발언이면 kind="quote"이고 quote에는 원문만 쓴다.\n- 발언이 없고 화면으로만 식별했으면 kind="scene"이고 quote는 반드시 "[장면]"으로 시작한다.\n- 1개 제품당 evidence는 가장 대표적인 장면 1개만 작성한다.\n- 인물 이름(출연자·게스트), 장소·도시·식당·카페·호텔·리조트·관광지명, 방송 제목·해시태그·감정 표현은 상품이 아니므로 products에 절대 넣지 않는다.\n- 서비스(마사지, 네일, PT, 헤어 등)는 온라인 구매 불가이므로 products에 넣지 않는다.\n- 오프라인 매장에서만 구매 가능한 현장 전용 메뉴·음식은 넣지 않는다.\n- 쿠팡·네이버쇼핑·11번가 등 온라인 쇼핑몰에서 검색·구매 가능한 실물 상품만 넣는다.\n- 출연자가 전혀 언급·설명하지 않고 화면에 스쳐 지나가기만 하는 제품은 넣지 않는다.\n- 확신할 수 없는 상품은 넣지 않는다.${durationClause}`;
 
 };
 
