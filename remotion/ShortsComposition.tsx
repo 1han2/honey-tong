@@ -1,14 +1,15 @@
 import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useState } from "react";
 import {
   AbsoluteFill,
   Audio,
   OffthreadVideo,
   Sequence,
+  continueRender,
+  delayRender,
   staticFile,
   useVideoConfig,
 } from "remotion";
-import { loadFont as loadJuaFont } from "@remotion/google-fonts/Jua";
-import { loadFont as loadNotoSansKR } from "@remotion/google-fonts/NotoSansKR";
 import type { ShortsRenderProps } from "./types.js";
 import { framesForDuration } from "./types.js";
 
@@ -17,17 +18,29 @@ const HEIGHT = 1_920;
 const HEADER_HEIGHT = 440;
 const VIDEO_HEIGHT = 1_160;
 
-// Load Google Fonts reliably in headless Chromium with subset optimization & automatic delayRender()
-const { fontFamily: titleFont } = loadJuaFont("normal", {
-  weights: ["400"],
-  subsets: ["korean"],
-  ignoreTooManyRequestsWarning: true,
-});
-const { fontFamily: captionFont } = loadNotoSansKR("normal", {
-  weights: ["800"],
-  subsets: ["korean"],
-  ignoreTooManyRequestsWarning: true,
-});
+const titleFont = "'Jua', sans-serif";
+const captionFont = "'Noto Sans KR', sans-serif";
+
+const FontStyles = () => (
+  <style>
+    {`
+      @font-face {
+        font-family: 'Jua';
+        src: url('${staticFile("fonts/Jua-Regular.ttf")}') format('truetype');
+        font-weight: normal;
+        font-style: normal;
+        font-display: block;
+      }
+      @font-face {
+        font-family: 'Noto Sans KR';
+        src: url('${staticFile("fonts/NotoSansKR-Bold.ttf")}') format('truetype');
+        font-weight: 800;
+        font-style: normal;
+        font-display: block;
+      }
+    `}
+  </style>
+);
 
 /**
  * Top Hook Title: ULTRA MASSIVE 140px Headline using Google 'Jua' Font
@@ -127,8 +140,28 @@ export const ShortsComposition = (props: ShortsRenderProps) => {
   let from = 0;
   const hookTitle = props.hookTitle?.trim() || props.title;
 
+  const [handle] = useState(() => delayRender("Loading local TTF fonts"));
+  useEffect(() => {
+    if (typeof document !== "undefined" && document.fonts) {
+      Promise.all([
+        document.fonts.load("400 100px 'Jua'"),
+        document.fonts.load("800 48px 'Noto Sans KR'"),
+        document.fonts.ready,
+      ])
+        .then(() => {
+          continueRender(handle);
+        })
+        .catch(() => {
+          continueRender(handle);
+        });
+    } else {
+      continueRender(handle);
+    }
+  }, [handle]);
+
   return (
     <AbsoluteFill style={{ backgroundColor: "#000000" }}>
+      <FontStyles />
       {props.segments.map((segment, index) => {
         const durationInFrames = framesForDuration(segment.durationMs, fps);
         const sequenceFrom = from;
