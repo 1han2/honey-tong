@@ -48,7 +48,8 @@ export const downloadDirectVideo = async (
 
     await runCommand("yt-dlp", [
       ...commonArgs,
-      "-f", "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b",
+      "-f", "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best",
+      "--merge-output-format", "mp4",
       "-o", outputPath,
       watchUrl,
     ]);
