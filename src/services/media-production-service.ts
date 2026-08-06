@@ -7,6 +7,40 @@ import { extractSourceClip } from "../lib/media.js";
 import { logger } from "./../lib/logger.js";
 import { TempWorkspace } from "../lib/temp-workspace.js";
 
+export const splitNarrationText = (text: string): string[] => {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  // Split by sentence terminators, slashes, or newlines
+  const parts = trimmed
+    .split(/(?<=[.!?~\n/])\s+/)
+    .map((p) => p.replace(/[.!?~\n/]+$/g, "").trim())
+    .filter((p) => p.length > 0);
+
+  if (parts.length > 1) {
+    return parts;
+  }
+
+  // If a single phrase is long (>16 chars) and has comma, split at comma
+  if (trimmed.length > 16) {
+    const commaParts = trimmed
+      .split(/(?<=[,])\s+/)
+      .map((p) => p.trim())
+      .filter(Boolean);
+    if (commaParts.length > 1) {
+      return commaParts;
+    }
+
+    const words = trimmed.split(/\s+/);
+    if (words.length >= 4) {
+      const mid = Math.floor(words.length / 2);
+      return [words.slice(0, mid).join(" "), words.slice(mid).join(" ")];
+    }
+  }
+
+  return [trimmed];
+};
+
 export type MediaRepository = {
   updateCandidate(candidateId: string, patch: Partial<Candidate>): Promise<void>;
 };
@@ -105,10 +139,22 @@ export const renderCandidate = async (
       lastError: null,
     });
 
+    const expandedSegments: ScriptPlan["segments"] = [];
+    for (const segment of scriptPlan.segments) {
+      if (segment.type === "narration") {
+        const chunks = splitNarrationText(segment.text);
+        for (const chunk of chunks) {
+          expandedSegments.push({ type: "narration", text: chunk });
+        }
+      } else {
+        expandedSegments.push(segment);
+      }
+    }
+
     const ttsAssets: TtsAsset[] = [];
     const renderSegments: ShortsRenderProps["segments"] = [];
 
-    for (const [index, segment] of scriptPlan.segments.entries()) {
+    for (const [index, segment] of expandedSegments.entries()) {
       if (segment.type === "narration") {
         const fileName = `narration-${String(index).padStart(2, "0")}.mp3`;
         const localPath = workspace.assetPath(fileName);
@@ -124,8 +170,8 @@ export const renderCandidate = async (
         let anchorVideoId = candidate.videoId;
         let anchorStartMs = candidate.product.evidence[0]?.startMs ?? 0;
 
-        const nextSegment = scriptPlan.segments[index + 1];
-        const prevSegment = scriptPlan.segments[index - 1];
+        const nextSegment = expandedSegments[index + 1];
+        const prevSegment = expandedSegments[index - 1];
         if (nextSegment?.type === "source_clip") {
           anchorVideoId = nextSegment.videoId;
           anchorStartMs = Math.max(0, nextSegment.sourceStartMs - durationMs);

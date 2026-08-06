@@ -1,7 +1,25 @@
 import fs from "node:fs/promises";
 import { describe, expect, it, vi } from "vitest";
-import { renderCandidate, validateSourceClipDurations } from "../src/services/media-production-service.js";
+import { renderCandidate, splitNarrationText, validateSourceClipDurations } from "../src/services/media-production-service.js";
 import { candidateFixture, videoFixture } from "./fixtures.js";
+
+describe("splitNarrationText", () => {
+  it("splits multi-sentence and long narration text into short chunks", () => {
+    expect(splitNarrationText("쫀득한 당고. 맛에 푹 빠져버린 모습입니다")).toEqual([
+      "쫀득한 당고",
+      "맛에 푹 빠져버린 모습입니다",
+    ]);
+    expect(splitNarrationText("쫀득한 당고 / 맛에 푹 빠져버린 모습입니다")).toEqual([
+      "쫀득한 당고",
+      "맛에 푹 빠져버린 모습입니다",
+    ]);
+    expect(splitNarrationText("쫀득한 당고 맛에 푹 빠져버린 모습입니다")).toEqual([
+      "쫀득한 당고 맛에",
+      "푹 빠져버린 모습입니다",
+    ]);
+    expect(splitNarrationText("너무 깔끔해요")).toEqual(["너무 깔끔해요"]);
+  });
+});
 
 describe("renderCandidate", () => {
   it("rejects source clips outside the confirmed source duration", () => {
