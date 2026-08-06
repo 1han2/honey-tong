@@ -36,21 +36,31 @@ jobs:
           YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
         run: |
           if [ -n "$YOUTUBE_PROXY" ]; then
-            echo "EXTRA_FLAGS=--proxy $YOUTUBE_PROXY" >> $GITHUB_ENV
+            PROXY_URL=$(echo "$YOUTUBE_PROXY" | grep -v '^#' | grep -v '^$' | head -n 1 | tr -d '\r')
+            echo "YOUTUBE_PROXY_SINGLE=$PROXY_URL" >> $GITHUB_ENV
             echo "🌐 Using YOUTUBE_PROXY secret"
           elif [ -n "$YOUTUBE_COOKIES" ]; then
             echo "$YOUTUBE_COOKIES" > cookies.txt
-            echo "EXTRA_FLAGS=--cookies cookies.txt" >> $GITHUB_ENV
+            echo "USE_COOKIES=true" >> $GITHUB_ENV
             echo "✅ Using YOUTUBE_COOKIES secret"
           else
-            echo "EXTRA_FLAGS=--extractor-args youtube:player_client=android" >> $GITHUB_ENV
+            echo "USE_ANDROID_FALLBACK=true" >> $GITHUB_ENV
             echo "⚠️ No proxy or cookies set, using android client fallback"
           fi
 
       - name: Download video
         run: |
+          FLAGS=()
+          if [ -n "$YOUTUBE_PROXY_SINGLE" ]; then
+            FLAGS+=("--proxy" "$YOUTUBE_PROXY_SINGLE")
+          elif [ "$USE_COOKIES" = "true" ]; then
+            FLAGS+=("--cookies" "cookies.txt")
+          elif [ "$USE_ANDROID_FALLBACK" = "true" ]; then
+            FLAGS+=("--extractor-args" "youtube:player_client=android")
+          fi
+
           yt-dlp \
-            ${{ env.EXTRA_FLAGS }} \
+            "${FLAGS[@]}" \
             -f "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b" \
             --no-playlist \
             --no-warnings \
