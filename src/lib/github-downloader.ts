@@ -3,7 +3,7 @@ import type { AppConfig } from "../config.js";
 import { requireConfig } from "../config.js";
 import { logger } from "./logger.js";
 
-const WORKFLOW_FILE = "download-video.yml";
+const WORKFLOW_FILE = "youtube-download.yml";
 const POLL_INTERVAL_MS = 5_000;
 const MAX_WAIT_MS = 8 * 60 * 1_000; // 8 minutes (workflow timeout is 10 min)
 
