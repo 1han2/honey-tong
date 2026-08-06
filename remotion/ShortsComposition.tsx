@@ -27,24 +27,11 @@ const FontStyles = () => (
 );
 
 /**
- * Top Hook Title: Max 140px Headline with dynamic character-length scaling.
- * Fits within 1050px bounds seamlessly.
+ * Top Hook Title: ULTRA MASSIVE 140px Headline
+ * Fits within 1050px bounds seamlessly based on line character count.
  */
 const HookTitle = ({ value }: { value: string }) => {
-  const rawLines = value.split(/\r?\n/).filter(Boolean);
-  let line1 = rawLines[0] || value;
-  let line2 = rawLines[1] || "";
-
-  // Split long lines if no explicit newline is given
-  if (!line2 && line1.length > 14) {
-    const spaceIdx = line1.lastIndexOf(" ", Math.ceil(line1.length / 2));
-    if (spaceIdx > 0) {
-      line2 = line1.slice(spaceIdx + 1);
-      line1 = line1.slice(0, spaceIdx);
-    }
-  }
-
-  const lines = [line1, line2].filter(Boolean);
+  const lines = value.split(/\r?\n/).filter(Boolean).slice(0, 2);
 
   return (
     <div
@@ -65,10 +52,9 @@ const HookTitle = ({ value }: { value: string }) => {
       }}
     >
       {lines.map((line, index) => {
-        // Dynamic font size: Max 140px, scaled down gracefully for longer lines
         const charCount = Math.max(line.length, 1);
-        const autoFitSize = Math.floor(1050 / (charCount * 0.78));
-        const finalSize = Math.max(68, Math.min(140, autoFitSize));
+        const autoFitSize = Math.floor(1050 / (charCount * 0.76));
+        const finalSize = Math.max(76, Math.min(140, autoFitSize));
 
         return (
           <div
