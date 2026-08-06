@@ -4,63 +4,98 @@ import { runCommand } from "./command.js";
 import { logger } from "./logger.js";
 
 /**
+ * Parses raw proxy input (single or multiple, newline/comma separated, any format like ip:port:user:pass)
+ * into a list of normalized proxy URLs (http://user:pass@ip:port).
+ */
+export const parseProxyList = (rawProxyStr?: string): string[] => {
+  if (!rawProxyStr) return [];
+  const lines = rawProxyStr.split(/[\r\n,]+/).map((l) => l.trim()).filter(Boolean);
+  return lines.map((line) => {
+    if (/^(https?|socks5|socks4):\/\//i.test(line)) return line;
+    const parts = line.split(":");
+    if (parts.length === 4) {
+      if (parts[0]!.includes(".")) {
+        // ip:port:user:pass
+        const [ip, port, user, pwd] = parts;
+        return `http://${user}:${pwd}@${ip}:${port}`;
+      }
+      // user:pass:ip:port
+      const [user, pwd, ip, port] = parts;
+      return `http://${user}:${pwd}@${ip}:${port}`;
+    }
+    return line;
+  });
+};
+
+/**
  * Resolves a YouTube watch URL to a direct video stream URL using yt-dlp.
  * Returns the best single-file MP4 stream URL that FFmpeg can consume.
- *
- * yt-dlp must be installed in the runtime environment (Dockerfile.job).
+ * Supports multi-proxy failover rotation.
  */
 export const resolveDirectVideoUrl = async (
   watchUrl: string,
   signal?: AbortSignal,
 ): Promise<string> => {
   const config = loadConfig();
-
-  // Check if cookies.txt is staged
+  const proxies = parseProxyList(config.YOUTUBE_PROXY);
   const cookiesExists = await fs.access("/tmp/cookies.txt").then(() => true).catch(() => false);
-  const commonArgs = [
-    "--no-download",
-    "-g",                       // print URL only
-    "--no-playlist",
-    "--no-warnings",
-  ];
 
-  if (config.YOUTUBE_PROXY) {
-    logger.info("Using YOUTUBE_PROXY for yt-dlp resolution");
-    commonArgs.push("--proxy", config.YOUTUBE_PROXY);
-  } else if (cookiesExists) {
-    commonArgs.push("--cookies", "/tmp/cookies.txt");
-  } else {
-    // Standard bypass argument to impersonate android client
-    commonArgs.push("--extractor-args", "youtube:player_client=android");
-  }
+  const attemptResolution = async (extraArgs: string[]): Promise<string> => {
+    const commonArgs = [
+      "--no-download",
+      "-g",
+      "--no-playlist",
+      "--no-warnings",
+      ...extraArgs,
+    ];
 
-  const { stdout } = await runCommand("yt-dlp", [
-    ...commonArgs,
-    "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b",
-    watchUrl,
-  ]);
-
-  const urls = stdout.trim().split("\n").filter(Boolean);
-  if (urls.length === 0) {
-    throw new Error(`yt-dlp returned no URLs for ${watchUrl}`);
-  }
-
-  // When video+audio are separate streams, yt-dlp prints two URLs.
-  // We need a single URL for FFmpeg's -i. If there are two,
-  // re-request with a single-stream format.
-  if (urls.length > 1) {
-    logger.info({ watchUrl, streamCount: urls.length }, "yt-dlp returned separate streams, requesting single stream");
-    const { stdout: singleStdout } = await runCommand("yt-dlp", [
+    const { stdout } = await runCommand("yt-dlp", [
       ...commonArgs,
-      "-f", "b[ext=mp4]/b",   // best single stream
+      "-f", "bv*[ext=mp4]+ba[ext=m4a]/b[ext=mp4]/bv*+ba/b",
       watchUrl,
     ]);
 
-    const singleUrl = singleStdout.trim().split("\n").filter(Boolean)[0];
-    if (singleUrl) return singleUrl;
+    const urls = stdout.trim().split("\n").filter(Boolean);
+    if (urls.length === 0) {
+      throw new Error(`yt-dlp returned no URLs for ${watchUrl}`);
+    }
+
+    if (urls.length > 1) {
+      logger.info({ watchUrl, streamCount: urls.length }, "yt-dlp returned separate streams, requesting single stream");
+      const { stdout: singleStdout } = await runCommand("yt-dlp", [
+        ...commonArgs,
+        "-f", "b[ext=mp4]/b",
+        watchUrl,
+      ]);
+
+      const singleUrl = singleStdout.trim().split("\n").filter(Boolean)[0];
+      if (singleUrl) return singleUrl;
+    }
+
+    return urls[0]!;
+  };
+
+  // 1. If proxies are configured, try proxies in order (failover)
+  if (proxies.length > 0) {
+    let lastError: unknown;
+    for (const [index, proxy] of proxies.entries()) {
+      try {
+        logger.info({ watchUrl, proxyIndex: index + 1, totalProxies: proxies.length }, "attempting yt-dlp resolution via proxy");
+        return await attemptResolution(["--proxy", proxy]);
+      } catch (err) {
+        lastError = err;
+        logger.warn({ watchUrl, proxyIndex: index + 1, error: String(err) }, "proxy resolution failed, trying next proxy");
+      }
+    }
+    throw new Error(`All ${proxies.length} proxies failed for ${watchUrl}: ${String(lastError)}`);
   }
 
-  return urls[0]!;
+  // 2. Fallback to cookies or android client if no proxies configured
+  if (cookiesExists) {
+    return attemptResolution(["--cookies", "/tmp/cookies.txt"]);
+  }
+
+  return attemptResolution(["--extractor-args", "youtube:player_client=android"]);
 };
 
 const YOUTUBE_HOST_PATTERN = /^(?:www\.)?(?:youtube\.com|youtu\.be)$/i;
