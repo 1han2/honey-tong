@@ -30,9 +30,23 @@ jobs:
             -o /usr/local/bin/yt-dlp
           sudo chmod a+rx /usr/local/bin/yt-dlp
 
+      - name: Setup cookies or extractor args
+        env:
+          YOUTUBE_COOKIES: ${{ secrets.YOUTUBE_COOKIES }}
+        run: |
+          if [ -n "$YOUTUBE_COOKIES" ]; then
+            echo "$YOUTUBE_COOKIES" > cookies.txt
+            echo "COOKIES_FLAG=--cookies cookies.txt" >> $GITHUB_ENV
+            echo "✅ Using YOUTUBE_COOKIES secret"
+          else
+            echo "COOKIES_FLAG=--extractor-args youtube:player_client=android" >> $GITHUB_ENV
+            echo "⚠️ YOUTUBE_COOKIES secret not set, using android client fallback"
+          fi
+
       - name: Download video
         run: |
           yt-dlp \
+            ${{ env.COOKIES_FLAG }} \
             -f "b[ext=mp4]/bv*[ext=mp4]+ba[ext=m4a]/b" \
             --no-playlist \
             --no-warnings \
