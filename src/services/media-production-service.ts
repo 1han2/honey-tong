@@ -28,6 +28,7 @@ export type MediaProductionDependencies = {
     deleteCandidateTemporaryObjects(candidateId: string): Promise<void>;
   };
   tts: { synthesizeToFile(text: string, outputPath: string): Promise<number> };
+  clipTranscriber?: { transcribeClip(clipPath: string): Promise<string> };
   probeDuration?(sourceUrl: string): Promise<number>;
   renderer: (input: {
     publicDir: string;
@@ -156,25 +157,38 @@ export const renderCandidate = async (
         if (!sourceUrl) {
           throw new Error(`No confirmed source asset for video ${segment.videoId}`);
         }
-        const sourceDuration = sourceDurations.get(segment.videoId) ?? Number.POSITIVE_INFINITY;
-        const rawDurationMs = segment.sourceEndMs - segment.sourceStartMs;
-        const estimatedNeededMs = Math.max(3_000, Math.round(segment.subtitle.length * 180));
-        const effectiveEndMs = Math.min(
-          sourceDuration,
-          Math.max(segment.sourceEndMs, segment.sourceStartMs + estimatedNeededMs),
-        );
         const fileName = `source-${String(index).padStart(2, "0")}.mp4`;
+        const clipPath = workspace.assetPath(fileName);
         await extractSourceClip({
           sourceUrl,
           startMs: segment.sourceStartMs,
-          endMs: effectiveEndMs,
-          outputPath: workspace.assetPath(fileName),
+          endMs: segment.sourceEndMs,
+          outputPath: clipPath,
         });
+        const durationMs = segment.sourceEndMs - segment.sourceStartMs;
+
+        // Transcribe the actual audio from the cut clip to fix subtitle sync
+        let subtitle = segment.subtitle;
+        if (dependencies.clipTranscriber) {
+          try {
+            const transcribed = await dependencies.clipTranscriber.transcribeClip(clipPath);
+            if (transcribed.length > 0) {
+              logger.info(
+                { index, original: segment.subtitle, transcribed },
+                "corrected subtitle from actual clip audio",
+              );
+              subtitle = transcribed;
+            }
+          } catch (err) {
+            logger.warn({ index, error: String(err) }, "clip transcription failed, using original subtitle");
+          }
+        }
+
         renderSegments.push({
           type: "source_clip",
           fileName,
-          durationMs: effectiveEndMs - segment.sourceStartMs,
-          subtitle: segment.subtitle,
+          durationMs,
+          subtitle,
         });
       }
       await workspace.assertWithinLimit();

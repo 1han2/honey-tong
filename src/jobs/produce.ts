@@ -27,6 +27,7 @@ const result = await prepareProduction(candidateId, {
 });
 
 if (result.status === "READY_FOR_MEDIA") {
+  const gemini = new GeminiVideoAnalyzer(config);
   const output = await renderCandidate(
     { candidate: result.candidate, scriptPlan: result.scriptPlan },
     {
@@ -34,6 +35,7 @@ if (result.status === "READY_FOR_MEDIA") {
       mediaStore: new GcsMediaStore(config),
       probeDuration: probeRemoteDurationMs,
       tts: new SmartTtsClient(config),
+      clipTranscriber: gemini,
       renderer: renderShorts,
       notifier: telegram,
       maxTempBytes: config.MAX_TEMP_BYTES,

@@ -237,6 +237,47 @@ export class GeminiVideoAnalyzer {
     });
   }
 
+  /**
+   * Transcribe the actual spoken dialogue from a short video clip.
+   * Used to correct AI-generated subtitles that may not match the real audio.
+   */
+  async transcribeClip(clipPath: string): Promise<string> {
+    const fs = await import("node:fs/promises");
+    const clipBytes = await fs.readFile(clipPath);
+    const base64 = clipBytes.toString("base64");
+
+    const response = await this.generateContentImpl({
+      model: this.scriptModel,
+      contents: [
+        {
+          inlineData: {
+            mimeType: "video/mp4",
+            data: base64,
+          },
+        },
+        {
+          text: [
+            "이 영상 클립에서 사람이 실제로 말하는 대사를 정확히 받아적어라.",
+            "규칙:",
+            "- 실제 들리는 말만 적는다. 추측하거나 요약하지 않는다.",
+            "- 아무 말도 안 들리면 빈 문자열을 반환한다.",
+            "- 문장 끝에 마침표(.)를 붙이지 않는다.",
+            "- JSON이 아니라 순수 텍스트만 반환한다.",
+          ].join("\n"),
+        },
+      ],
+      config: {
+        temperature: 0.1,
+        responseMimeType: "text/plain",
+        abortSignal: AbortSignal.timeout(30_000),
+      },
+    });
+
+    const text = response.text?.trim() ?? "";
+    logger.info({ clipPath, transcribedLength: text.length }, "transcribed clip subtitle from actual audio");
+    return text.replace(/\.+$/, "").trim();
+  }
+
   private async generateStructured<T>(input: {
     videoUrls: string[];
     prompt: string;
