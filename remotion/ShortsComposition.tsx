@@ -56,8 +56,10 @@ const HookTitle = ({ value }: { value: string }) => {
             fontWeight: 900,
             letterSpacing: -1.5,
             lineHeight: 1.15,
-            textShadow: "0 4px 10px rgba(0, 0, 0, 0.95)",
-            WebkitTextStroke: "2.5px #000000",
+            paintOrder: "stroke fill",
+            WebkitTextStroke: "4px #000000",
+            textShadow: "0 6px 14px rgba(0, 0, 0, 0.95), 0 2px 4px rgba(0, 0, 0, 0.8)",
+            filter: "drop-shadow(0px 6px 12px rgba(0, 0, 0, 0.95))",
           }}
         >
           {line}
@@ -93,8 +95,10 @@ const Caption = ({ children, style }: { children: ReactNode; style?: CSSProperti
         lineHeight: 1.25,
         letterSpacing: -0.5,
         textAlign: "center",
-        textShadow: "0 4px 12px rgba(0, 0, 0, 0.95)",
-        WebkitTextStroke: "3px #000000",
+        paintOrder: "stroke fill",
+        WebkitTextStroke: "4px #000000",
+        textShadow: "0 6px 16px rgba(0, 0, 0, 0.95), 0 2px 5px rgba(0, 0, 0, 0.85)",
+        filter: "drop-shadow(0px 6px 14px rgba(0, 0, 0, 0.95))",
         wordBreak: "keep-all",
         maxWidth: 960,
       }}
