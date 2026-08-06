@@ -68,10 +68,21 @@ if lines:
 
       - name: Extract Inputs
         run: |
-          VIDEO_ID="${{ github.event.inputs.video_id || github.event.client_payload.video_id }}"
-          CANDIDATE_ID="${{ github.event.inputs.candidate_id || github.event.client_payload.candidate_id }}"
-          GCS_BUCKET="${{ github.event.inputs.gcs_bucket || github.event.client_payload.gcs_bucket }}"
-          
+          VIDEO_ID="${{ github.event.inputs.video_id }}"
+          if [ -z "$VIDEO_ID" ]; then
+            VIDEO_ID="${{ github.event.client_payload.video_id }}"
+          fi
+
+          CANDIDATE_ID="${{ github.event.inputs.candidate_id }}"
+          if [ -z "$CANDIDATE_ID" ]; then
+            CANDIDATE_ID="${{ github.event.client_payload.candidate_id }}"
+          fi
+
+          GCS_BUCKET="${{ github.event.inputs.gcs_bucket }}"
+          if [ -z "$GCS_BUCKET" ]; then
+            GCS_BUCKET="${{ github.event.client_payload.gcs_bucket }}"
+          fi
+
           echo "VIDEO_ID=$VIDEO_ID" >> $GITHUB_ENV
           echo "CANDIDATE_ID=$CANDIDATE_ID" >> $GITHUB_ENV
           echo "GCS_BUCKET=$GCS_BUCKET" >> $GITHUB_ENV
