@@ -153,9 +153,7 @@ export class GcsMediaStore {
   }
 
   async deleteCandidateTemporaryObjects(candidateId: string): Promise<void> {
-    const sourcePrefix = `source/${candidateId}/`;
-    const [files] = await this.storage.bucket(this.bucketName).getFiles({ prefix: sourcePrefix });
-    await Promise.all(files.map((file) => file.delete().catch(() => {})));
+    // Preserve staged source assets in GCS to support instant re-renders without yt-dlp re-downloads
   }
 }
 
