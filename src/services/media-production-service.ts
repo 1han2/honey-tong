@@ -194,13 +194,15 @@ export const renderCandidate = async (
         }
         const fileName = `source-${String(index).padStart(2, "0")}.mp4`;
         const clipPath = workspace.assetPath(fileName);
+        const clipStartMs = Math.max(0, segment.sourceStartMs - 300);
+        const clipEndMs = segment.sourceEndMs + 800;
         await extractSourceClip({
           sourceUrl,
-          startMs: segment.sourceStartMs,
-          endMs: segment.sourceEndMs,
+          startMs: clipStartMs,
+          endMs: clipEndMs,
           outputPath: clipPath,
         });
-        const durationMs = segment.sourceEndMs - segment.sourceStartMs;
+        const durationMs = clipEndMs - clipStartMs;
 
         // Transcribe the actual audio from the cut clip to fix subtitle sync
         let subtitle = segment.subtitle;
