@@ -69,8 +69,8 @@ const HookTitle = ({ value }: { value: string }) => {
     >
       {lines.map((line, index) => {
         const charCount = Math.max(line.length, 1);
-        const autoFitSize = Math.floor(1050 / (charCount * 0.65));
-        const finalSize = Math.max(96, Math.min(160, autoFitSize));
+        const autoFitSize = Math.floor(1050 / (charCount * 0.72));
+        const finalSize = Math.max(90, Math.min(160, autoFitSize));
 
         return (
           <div
@@ -126,16 +126,16 @@ export const splitIntoMicroChunks = (text: string, maxWords = 3): string[] => {
   return chunks;
 };
 
-const formatSubtitleText = (text: ReactNode, isYellow = false): ReactNode => {
+const formatSubtitleText = (text: ReactNode): ReactNode => {
   if (typeof text !== "string") return text;
   const str = text.replace(/\.+$|\.\s*$/g, "").trim();
 
-  if (!isYellow && str.includes("*")) {
+  if (str.includes("*")) {
     const parts = str.split(/(\*[^*]+\*)/g);
     return parts.map((part, i) => {
       if (part.startsWith("*") && part.endsWith("*")) {
         return (
-          <span key={i} style={{ color: "#FFE500" }}>
+          <span key={i} style={{ color: "#E53935" }}>
             {part.slice(1, -1)}
           </span>
         );
@@ -148,7 +148,7 @@ const formatSubtitleText = (text: ReactNode, isYellow = false): ReactNode => {
 };
 
 /**
- * Overlay Subtitle: Lower-positioned Subtitle with Translucent Black Background Box
+ * Overlay Subtitle: Lower-positioned Subtitle with White Background Box and Black Border
  */
 const VideoOverlayCaption = ({
   children,
@@ -178,30 +178,29 @@ const VideoOverlayCaption = ({
   >
     <div
       style={{
-        backgroundColor: "rgba(0, 0, 0, 0.82)",
-        borderRadius: 20,
+        backgroundColor: isNarration ? "#FFF59D" : "#FFFFFF",
+        border: "6px solid #000000",
+        borderRadius: 0,
         padding: "16px 36px",
-        boxShadow: "0px 8px 24px rgba(0, 0, 0, 0.7)",
+        boxShadow: "0px 8px 24px rgba(0, 0, 0, 0.15)",
         display: "inline-block",
         maxWidth: 960,
       }}
     >
       <div
         style={{
-          color: isNarration ? "#FFE500" : "#FFFFFF",
+          color: "#000000",
           fontFamily: captionFont,
           fontSize: 70,
           fontWeight: 800,
           lineHeight: 1.3,
           letterSpacing: -0.5,
           textAlign: "center",
-          textShadow: "0px 3px 10px rgba(0, 0, 0, 0.9)",
-          filter: "drop-shadow(0px 3px 8px rgba(0, 0, 0, 0.9))",
           wordBreak: "keep-all",
           whiteSpace: "pre-wrap",
         }}
       >
-        {formatSubtitleText(children, isNarration)}
+        {formatSubtitleText(children)}
       </div>
     </div>
   </div>

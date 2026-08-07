@@ -37,31 +37,25 @@ export class ShortsRepository {
   }
 
   async upsertChannels(channels: Channel[]): Promise<void> {
-    const token = execSync("gcloud auth print-access-token", { encoding: "utf8" }).trim();
-    const projectId = process.env.GOOGLE_CLOUD_PROJECT || "honeytong";
-
+    const batch = this.firestore.batch();
     for (const rawChannel of channels) {
       const channel = channelSchema.parse(rawChannel);
-      const url = `https://firestore.googleapis.com/v1/projects/${projectId}/databases/(default)/documents/channels/${channel.youtubeChannelId}`;
-      await fetch(url, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
+      const ref = this.firestore.collection("channels").doc(channel.youtubeChannelId);
+      batch.set(
+        ref,
+        {
+          youtubeChannelId: channel.youtubeChannelId,
+          celebrityName: channel.celebrityName,
+          channelName: channel.channelName,
+          channelUrl: channel.channelUrl,
+          enabled: channel.enabled,
+          sourceRow: channel.sourceRow,
+          updatedAt: nowIso(),
         },
-        body: JSON.stringify({
-          fields: {
-            youtubeChannelId: { stringValue: channel.youtubeChannelId },
-            celebrityName: { stringValue: channel.celebrityName },
-            channelName: { stringValue: channel.channelName },
-            channelUrl: { stringValue: channel.channelUrl },
-            enabled: { booleanValue: channel.enabled },
-            sourceRow: { integerValue: String(channel.sourceRow) },
-            updatedAt: { stringValue: nowIso() },
-          },
-        }),
-      });
+        { merge: true },
+      );
     }
+    await batch.commit();
   }
 
   async listEnabledChannels(): Promise<Channel[]> {
